@@ -225,6 +225,7 @@
         const AUTH_WORKER = 'https://sdis-authenticator.saikoudevelopment.workers.dev';
         const DATA_WORKER = 'https://saikou-ban-proxy.saikoudevelopment.workers.dev';
         const ROTECTOR_API = 'https://roscoe.robalyx.com/v1/lookup/roblox/user';
+        const JUSTICE_PROXY = 'https://justice.saikoudevelopment.workers.dev'; // CLANWARE JUSTICE PROXY
         
         // --- CONFIG: OOFD & EXTERNAL LISTS ---
         const OOFD_API_URL = 'https://oofd.net/api/ban/status/';
@@ -344,12 +345,10 @@
             btn.textContent = "Authenticate"; btn.disabled = false;
         };
 
-        // --- SPECIFIC OOFD/EXPLOIT CHECK (Ported from search.ts) ---
+        // --- SPECIFIC OOFD/EXPLOIT CHECK ---
         async function checkOOFD(userId) {
             try {
-                // Using CORS proxy because this API is meant for servers
                 const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(OOFD_API_URL)}`;
-                
                 const response = await fetch(proxyUrl, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -361,46 +360,69 @@
                 const data = await response.json();
                 const bans = [];
 
-                // Logic ported from search.ts filterBans()
                 if (data.Banned === true && data.Data) {
                     const entries = Array.isArray(data.Data) ? data.Data : [data.Data];
-                    
                     entries.forEach(entry => {
                         let reason = "";
                         const bannedBy = (entry.BannedBy || "").toUpperCase();
-
                         switch (bannedBy) {
-                            case 'SYNAPSE':
-                                reason = "Registered Synapse Owner (Exploit Injector)";
-                                break;
-                            case 'KRNL':
-                                reason = "Registered KRNL Owner (Exploit Injector)";
-                                break;
-                            default:
-                                reason = `Banned for exploiting by ${entry.BannedBy} group`;
-                                break;
+                            case 'SYNAPSE': reason = "Registered Synapse Owner (Exploit Injector)"; break;
+                            case 'KRNL': reason = "Registered KRNL Owner (Exploit Injector)"; break;
+                            default: reason = `Banned for exploiting by ${entry.BannedBy} group`; break;
                         }
-
                         bans.push({
                             source: "OOFD Federation",
                             reason: reason,
                             date: new Date().toISOString(),
-                            isExploit: true // Flag for high risk score
+                            isExploit: true 
                         });
                     });
                 }
-                
-                // Account Age Check (from search.ts)
-                if (data.AccountAge <= 182) {
-                    // We handle age in main calculator, but good to verify data exists
-                }
-
                 return bans;
-
             } catch (e) {
                 console.warn("OOFD Check Failed:", e);
                 return [];
             }
+        }
+
+        // --- CLANWARE JUSTICE CHECK (Updated for Extra Details) ---
+        async function checkClanwareJustice(userId) {
+            const hits = [];
+            // We check both Exploiters and Degenerates endpoints via our proxy
+            const checks = [
+                { endpoint: '/api/justice/exploiters', type: 'EXPLOIT', label: 'Clanware Justice (Exploiter)' },
+                { endpoint: '/api/justice/degenerates', type: 'CONDUCT', label: 'Clanware Justice (Degenerate)' }
+            ];
+
+            for (const check of checks) {
+                try {
+                    const r = await fetch(`${JUSTICE_PROXY}${check.endpoint}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ robloxIds: [String(userId)], showArchived: true })
+                    });
+                    
+                    if (r.ok) {
+                        const data = await r.json();
+                        // API returns an array of case objects if found
+                        if (Array.isArray(data) && data.length > 0) {
+                            data.forEach(item => {
+                                hits.push({
+                                    source: check.label,
+                                    reason: `Case #${item.case_id} (${item.status})`,
+                                    date: item.date_created || new Date().toISOString(),
+                                    isExploit: check.type === 'EXPLOIT',
+                                    isJustice: true, // Tag for specific weighting
+                                    details: item // Store FULL object for rendering
+                                });
+                            });
+                        }
+                    }
+                } catch (e) {
+                    console.warn(`Justice API failed for ${check.type}`, e);
+                }
+            }
+            return hits;
         }
 
         // --- General Federated Check ---
@@ -412,11 +434,15 @@
                 hits.push({ source: "Local Threat List", reason: "Manually Flagged by Operator", date: new Date().toISOString() });
             }
 
-            // 2. OOFD Check (The one from your file)
+            // 2. OOFD Check
             const oofdBans = await checkOOFD(userId);
             hits = [...hits, ...oofdBans];
 
-            // 3. Other External DBs
+            // 3. NEW Clanware Justice Check
+            const justiceBans = await checkClanwareJustice(userId);
+            hits = [...hits, ...justiceBans];
+
+            // 4. Other External DBs
             for (const db of EXTERNAL_DATABASES) {
                 if (db.url) {
                     try {
@@ -472,13 +498,18 @@
                 app.friendStats.total = app.friends.length;
                 app.rings = d.ringIndicators || d.rings || [];
                 
-                // --- FEDERATED LISTS CHECK (Includes OOFD) ---
+                // --- FEDERATED LISTS CHECK (Includes OOFD & JUSTICE) ---
                 if (app.profile.id) {
-                    log(`Querying Federated Ban Lists & OOFD...`);
+                    log(`Querying Federated Ban Lists (OOFD, Justice, External)...`);
                     const fedBans = await checkFederatedBans(app.profile.id);
                     if (fedBans.length > 0) {
                         app.federatedBans = fedBans;
                         log(`MATCH FOUND: Subject listed in ${fedBans.length} database(s).`, 'error');
+                        
+                        // Special log for Justice hits
+                        if(fedBans.some(b => b.isJustice)) {
+                            log(`CRITICAL: CLANWARE JUSTICE RECORD FOUND.`, 'error');
+                        }
                     } else {
                         log(`Federated lists: Clean.`, 'success');
                     }
@@ -601,9 +632,10 @@
             if (app.federatedBans.length > 0) {
                 const fedBanRecords = app.federatedBans.map(fb => ({
                     Reason: fb.reason,
-                    type: fb.isExploit ? "EXPLOIT" : "EXTERNAL",
+                    type: fb.isExploit ? "EXPLOIT" : fb.isJustice ? "JUSTICE" : "EXTERNAL",
                     Date: fb.date,
-                    Moderator: fb.source
+                    Moderator: fb.source,
+                    details: fb.details // Pass rich details through
                 }));
                 banHistory = [...fedBanRecords, ...banHistory];
             }
@@ -699,12 +731,44 @@
                             ${(banHistory.length) ? 
                                 `<div class="space-y-2 max-h-40 overflow-y-auto custom-scroll pr-1">
                                     ${banHistory.map(b => `
-                                        <div class="border border-[#333] p-2 bg-[#111] rounded text-xs ${b.type === 'EXPLOIT' ? 'border-l-2 border-l-purple-500' : b.type === 'EXTERNAL' ? 'border-l-2 border-l-red-500' : ''}">
+                                        <div class="border border-[#333] p-2 bg-[#111] rounded text-xs ${b.type === 'EXPLOIT' ? 'border-l-2 border-l-purple-500' : b.type === 'JUSTICE' ? 'border-l-2 border-l-blue-500' : 'border-l-2 border-l-red-500'}">
                                             <div class="font-bold text-white flex justify-between">
                                                 <span class="truncate pr-2" title="${b.Reason}">${b.Reason}</span>
-                                                <span class="text-[10px] px-1 bg-red-900 text-red-200 rounded whitespace-nowrap">${b.type}</span>
+                                                <span class="text-[10px] px-1 ${b.type === 'JUSTICE' ? 'bg-blue-900 text-blue-200' : 'bg-red-900 text-red-200'} rounded whitespace-nowrap">${b.type}</span>
                                             </div>
                                             <div class="text-gray-500 mt-1 flex justify-between"><span>${new Date(b.Date).toLocaleDateString()}</span><span>By: ${b.Moderator}</span></div>
+                                            
+                                            <!-- RICHER DETAILS FOR CLANWARE JUSTICE -->
+                                            ${b.details ? `
+                                                <div class="mt-2 pt-2 border-t border-[#333] space-y-2">
+                                                    ${b.details.strike ? `<div class="text-yellow-500 font-mono flex items-center gap-1"><i class="fas fa-bolt text-[10px]"></i> Strike ${b.details.strike}</div>` : ''}
+                                                    
+                                                    ${b.details.evidence && b.details.evidence.length > 0 ? `
+                                                        <div class="flex flex-wrap gap-1">
+                                                            ${b.details.evidence.map((ev, i) => {
+                                                                // Use archive.clanware.org link if evidence is a UUID
+                                                                const link = ev.startsWith('http') ? ev : `https://archive.clanware.org/?uuid=${ev}`;
+                                                                return `<a href="${link}" target="_blank" class="px-2 py-0.5 bg-[#222] hover:bg-[#333] hover:text-white rounded text-[9px] text-blue-400 border border-[#333] transition-colors"><i class="fas fa-link mr-1"></i>Evidence ${i+1}</a>`;
+                                                            }).join('')}
+                                                        </div>
+                                                    ` : ''}
+
+                                                    ${(b.details.alts?.length || b.details.account_sharing?.length) ? `
+                                                        <div class="bg-black/30 p-1.5 rounded border border-[#222]">
+                                                            <div class="text-[9px] text-gray-600 uppercase font-bold mb-1">Linked Accounts (Justice)</div>
+                                                            <div class="space-y-1">
+                                                                ${[...(b.details.alts||[]), ...(b.details.account_sharing||[])].map(a => 
+                                                                    `<div class="flex items-center gap-2 text-[10px] text-gray-400">
+                                                                        <i class="fas fa-network-wired text-[8px] text-gray-600"></i> 
+                                                                        <span class="font-mono text-gray-300">${a.roblox_username || 'Unknown'}</span>
+                                                                        <span class="text-[9px] opacity-50">${a.roblox_id}</span>
+                                                                    </div>`
+                                                                ).join('')}
+                                                            </div>
+                                                        </div>
+                                                    ` : ''}
+                                                </div>
+                                            ` : ''}
                                         </div>
                                     `).join('')}
                                 </div>` 
@@ -947,11 +1011,22 @@
             if(rings && rings.length > 0) { score -= 50; reasons.negative.push({text: `Member of ${rings.length} Exploiter Ring(s)`, weight: -50, icon: "fa-link"}); }
             if(profile.isPOI) { score -= 50; reasons.negative.push({text: "Designated Person of Interest", weight: -50, icon: "fa-exclamation-triangle"}); }
 
-            // Federated Ban Penalties
+            // Federated Ban Penalties (Including new Justice API)
             if (federatedBans && federatedBans.length > 0) {
-                const fedPenalty = federatedBans.length * 40;
-                score -= fedPenalty;
-                reasons.negative.push({text: `Found in ${federatedBans.length} Federated Ban List(s)`, weight: -fedPenalty, icon: "fa-globe-americas"});
+                // Justice records are severe
+                const justiceRecords = federatedBans.filter(b => b.isJustice);
+                if (justiceRecords.length > 0) {
+                     score -= 90;
+                     reasons.negative.push({text: `CRITICAL: ${justiceRecords.length} Clanware Justice Record(s)`, weight: -90, icon: "fa-gavel"});
+                }
+
+                // General Federated (OOFD etc)
+                const otherRecords = federatedBans.filter(b => !b.isJustice);
+                if (otherRecords.length > 0) {
+                    const fedPenalty = otherRecords.length * 40;
+                    score -= fedPenalty;
+                    reasons.negative.push({text: `Found in ${otherRecords.length} Federated Ban List(s)`, weight: -fedPenalty, icon: "fa-globe-americas"});
+                }
             }
 
             if (rotector) {
