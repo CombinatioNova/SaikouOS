@@ -236,6 +236,7 @@
         ];
 
         const LOCAL_THREAT_IDS = ["1"]; // Example
+        const SAIKOU_GROUP_ID = "3149674"; // Saikou Group
 
         let app = { 
             user: null, 
@@ -245,7 +246,7 @@
             groups: [], 
             rings: [], 
             bannedFriends: [],
-            rotector: null,
+            rotector: null, 
             federatedBans: [], 
             userRings: [],
             friendSafety: new Map(),
@@ -491,6 +492,36 @@
             }, 2000);
         }
 
+        // --- Helper: Saikou Rank Styler ---
+        function getSaikouRankStyle(role) {
+            const r = role.toLowerCase();
+            // Returns: { text, border, bg, icon, shadow, ring }
+            if (r.includes('lead developer')) return { 
+                text: 'text-fuchsia-400', border: 'border-fuchsia-500/50', bg: 'bg-fuchsia-950/30', icon: 'fa-code', shadow: 'shadow-fuchsia-500/20', glow: 'shadow-[0_0_20px_rgba(232,121,249,0.15)]' 
+            };
+            if (r.includes('community manager')) return { 
+                text: 'text-emerald-400', border: 'border-emerald-500/50', bg: 'bg-emerald-950/30', icon: 'fa-bullhorn', shadow: 'shadow-emerald-500/20', glow: 'shadow-[0_0_20px_rgba(52,211,153,0.15)]' 
+            };
+            if (r.includes('head moderator')) return { 
+                text: 'text-red-500', border: 'border-red-500/50', bg: 'bg-red-950/30', icon: 'fa-gavel', shadow: 'shadow-red-500/20', glow: 'shadow-[0_0_20px_rgba(239,68,68,0.15)]' 
+            };
+            if (r.includes('senior moderator')) return { 
+                text: 'text-orange-400', border: 'border-orange-500/50', bg: 'bg-orange-950/30', icon: 'fa-shield-alt', shadow: 'shadow-orange-500/20', glow: 'shadow-[0_0_20px_rgba(251,146,60,0.15)]' 
+            };
+            if (r.includes('moderator')) return { 
+                text: 'text-blue-400', border: 'border-blue-500/50', bg: 'bg-blue-950/30', icon: 'fa-shield-alt', shadow: 'shadow-blue-500/20', glow: 'shadow-[0_0_20px_rgba(96,165,250,0.15)]' 
+            };
+            if (r.includes('trial moderator')) return { 
+                text: 'text-cyan-400', border: 'border-cyan-500/50', bg: 'bg-cyan-950/30', icon: 'fa-graduation-cap', shadow: 'shadow-cyan-500/20', glow: 'shadow-[0_0_20px_rgba(34,211,238,0.15)]' 
+            };
+            if (r.includes('contractor')) return { 
+                text: 'text-yellow-400', border: 'border-yellow-500/50', bg: 'bg-yellow-950/30', icon: 'fa-file-contract', shadow: 'shadow-yellow-500/20', glow: 'shadow-[0_0_20px_rgba(250,204,21,0.15)]' 
+            };
+            return { 
+                text: 'text-gray-400', border: 'border-gray-600', bg: 'bg-[#111]', icon: 'fa-user', shadow: 'shadow-gray-500/20', glow: 'shadow-none' 
+            };
+        }
+
         // --- Core Search Logic ---
         async function search(query) {
             const q = query || document.getElementById('search-input').value.trim();
@@ -560,6 +591,12 @@
                             }
                         }
                     } catch(e) { log(`Rotector AI connection timed out.`, 'warn'); }
+                }
+
+                // --- SAIKOU CHECK (Instant) ---
+                const saikouData = app.groups.find(g => String(g.id) === SAIKOU_GROUP_ID);
+                if (saikouData) {
+                    log(`SAIKOU AFFILIATION CONFIRMED: ${saikouData.role}`, 'success');
                 }
 
                 await new Promise(r => setTimeout(r, 500));
@@ -658,6 +695,32 @@
             const p = data.profile;
             const risk = calculateSafetyScore(p, app.friends, app.rings, app.bannedFriends, app.rotector, app.federatedBans);
             
+            // Saikou Check
+            const saikouData = app.groups.find(g => String(g.id) === SAIKOU_GROUP_ID);
+            let saikouBadgeHTML = '';
+            if (saikouData) {
+                const style = getSaikouRankStyle(saikouData.role);
+                saikouBadgeHTML = `
+                    <div class="mt-4 p-4 rounded-lg border ${style.border} ${style.bg} ${style.glow} relative overflow-hidden group transition-all duration-300 hover:scale-[1.02]">
+                        <!-- Background Watermark -->
+                        <div class="absolute -right-2 -bottom-4 text-9xl opacity-5 pointer-events-none select-none">
+                            <i class="fas ${style.icon} ${style.text}"></i>
+                        </div>
+                        
+                        <div class="flex items-center gap-4 relative z-10">
+                            <div class="w-10 h-10 rounded-full ${style.bg} border ${style.border} flex items-center justify-center shadow-lg relative overflow-hidden">
+                                 <div class="absolute inset-0 ${style.bg} animate-pulse opacity-50"></div>
+                                 <i class="fas ${style.icon} ${style.text} text-lg relative z-10"></i>
+                            </div>
+                            <div>
+                                <div class="text-[9px] uppercase font-bold text-gray-500 tracking-[0.2em] mb-0.5">Saikou Affiliated</div>
+                                <div class="text-base font-black ${style.text} tracking-tight">${saikouData.role}</div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
             let banHistory = data.banHistory || [];
             if (app.federatedBans.length > 0) {
                 const fedBanRecords = app.federatedBans.map(fb => ({
@@ -714,8 +777,10 @@
                             <h2 class="text-xl font-bold text-white">${p.displayName}</h2>
                             <p class="text-sm text-gray-500 font-mono mb-6">@${p.name} <span class="mx-1">|</span> ID: ${p.id}</p>
                             
+                            ${saikouBadgeHTML}
+
                             ${p.isPOI ? `
-                                <div class="poi-alert-card mb-6 text-left relative overflow-hidden">
+                                <div class="poi-alert-card mb-6 text-left relative overflow-hidden mt-4">
                                     <div class="flex items-start gap-4">
                                         <i class="fas fa-exclamation-triangle text-red-500 text-3xl mt-1"></i>
                                         <div class="w-full">
@@ -731,7 +796,7 @@
                                 </div>
                             ` : ''}
 
-                            <div class="flex justify-center gap-2 mb-6">
+                            <div class="flex justify-center gap-2 mb-6 mt-6">
                                 <a href="https://www.roblox.com/users/${p.id}/profile" target="_blank" class="min-btn-outline text-xs"><i class="fas fa-external-link-alt mr-1"></i> Roblox</a>
                                 <button onclick="navigator.clipboard.writeText('${p.id}')" class="min-btn-outline text-xs"><i class="fas fa-copy mr-1"></i> ID</button>
                             </div>
