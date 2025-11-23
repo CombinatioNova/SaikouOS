@@ -1,0 +1,1163 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>Saikou | User Lookup</title>
+    <meta name="description" content="Mod Intelligence Tool - Roblox user information and threat assessment." />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet" />
+
+    <style>
+        :root {
+            --bg-main: #000000;
+            --panel-bg: #0a0a0a;
+            --border: #333333;
+            --text-main: #ffffff;
+            --text-muted: #888888;
+            --accent-red: #ef4444;
+            --accent-blue: #3b82f6;
+        }
+
+        body {
+            background-color: var(--bg-main);
+            color: var(--text-main);
+            font-family: 'Inter', sans-serif;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* Panel & Layout */
+        .min-panel { background-color: var(--panel-bg); border: 1px solid var(--border); border-radius: 8px; }
+        
+        /* Inputs & Search */
+        .search-group {
+            background-color: #000; border: 1px solid var(--border); border-radius: 8px;
+            display: flex; align-items: center; padding: 4px 6px; transition: border-color 0.2s;
+        }
+        .search-group:focus-within { border-color: #ffffff; }
+        .search-input {
+            background: transparent; border: none; color: white; padding: 12px; width: 100%; font-size: 16px; outline: none;
+        }
+        .search-action-btn {
+            background: #ffffff; color: black; border-radius: 6px; padding: 8px 16px; font-weight: 600; font-size: 14px; transition: opacity 0.2s;
+        }
+        .search-action-btn:hover { opacity: 0.9; }
+
+        /* Buttons */
+        .min-btn-outline { background: transparent; border: 1px solid var(--border); color: #ccc; padding: 8px 16px; border-radius: 6px; font-size: 14px; transition: all 0.2s; }
+        .min-btn-outline:hover { border-color: #666; color: white; background: #111; }
+        .min-btn { background: white; color: black; padding: 10px 20px; border-radius: 6px; font-weight: 600; border: none; transition: opacity 0.2s; }
+        .min-btn:hover { opacity: 0.9; }
+        .min-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .min-input { background-color: #000; border: 1px solid var(--border); color: white; border-radius: 6px; padding: 8px 12px; outline: none; }
+        .min-input:focus { border-color: #666; }
+
+        /* Terminal */
+        .terminal-window { font-family: 'JetBrains Mono', monospace; background: #050505; border: 1px solid var(--border); }
+        .log-entry { padding: 2px 0; word-break: break-word; }
+        .log-entry.success { color: #10b981; font-weight: bold; }
+        .log-entry.info { color: #9ca3af; }
+        .log-entry.error { color: #ef4444; }
+        .log-entry.warn { color: #f59e0b; }
+
+        /* Risk Bar */
+        .risk-bar-fill { height: 100%; transition: width 1s ease; }
+        
+        /* Modals */
+        .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.95); display: flex; align-items: center; justify-content: center; z-index: 100; padding: 20px; backdrop-filter: blur(5px); }
+        
+        /* Grid & Utils */
+        .stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem; }
+        .custom-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
+        .custom-scroll::-webkit-scrollbar-track { background: #111; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+        .custom-scroll::-webkit-scrollbar-thumb:hover { background: #555; }
+
+        /* Animation */
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+        .animate-pulse-fast { animation: blink 1s infinite; }
+
+        /* POI Special Styling - Ported from lookup.html */
+        @keyframes pulse-danger {
+            0%, 100% { box-shadow: 0 0 15px rgba(220, 38, 38, 0.1); border-color: rgba(220, 38, 38, 0.3); }
+            50% { box-shadow: 0 0 25px rgba(220, 38, 38, 0.2); border-color: rgba(220, 38, 38, 0.6); }
+        }
+        .poi-alert-card {
+            background-color: rgba(69, 10, 10, 0.3); /* dark red bg */
+            border: 1px solid rgba(220, 38, 38, 0.4);
+            border-radius: 0.5rem;
+            padding: 1rem;
+            animation: pulse-danger 3s infinite;
+        }
+        .poi-border { border-color: #dc2626 !important; }
+    </style>
+</head>
+
+<body>
+
+    <!-- Navigation -->
+    <nav class="sticky top-0 z-50 bg-black/90 border-b border-[#222] px-4 py-4 backdrop-blur-md">
+        <div class="max-w-6xl mx-auto flex justify-between items-center">
+            <a href="/" class="flex items-center gap-2">
+                <div class="w-2 h-2 bg-white rounded-full"></div>
+                <div class="font-bold text-lg tracking-tight text-white">Saikou Tools <span class="text-gray-600 font-normal">/ Lookup</span></div>
+            </a>
+            
+            <!-- Auth UI -->
+            <div id="auth-ui">
+                <!-- Logged Out -->
+                <div id="login-container">
+                    <button id="btn-login" class="min-btn-outline flex items-center gap-2 text-xs uppercase tracking-wider font-semibold">
+                        <i class="fas fa-lock text-[10px]"></i> <span>SDIS Access</span>
+                    </button>
+                </div>
+                <!-- Logged In -->
+                <div id="user-card" class="hidden flex items-center gap-3">
+                    <div class="text-right hidden sm:block">
+                        <div id="user-name" class="text-sm font-bold leading-none text-white"></div>
+                        <div id="user-rank" class="text-[10px] text-gray-500 uppercase mt-1 font-mono"></div>
+                    </div>
+                    <img id="user-pfp" class="w-9 h-9 rounded bg-gray-900 border border-[#333] object-cover">
+                    <button id="btn-logout" class="text-gray-500 hover:text-white px-2 transition-colors"><i class="fas fa-sign-out-alt"></i></button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <main class="max-w-6xl mx-auto px-4 py-10 min-h-screen">
+        <!-- Search Section -->
+        <div class="text-center mb-12">
+            <h1 class="text-3xl font-bold mb-3 text-white tracking-tight">Operative Intelligence</h1>
+            <p class="text-gray-500 text-sm mb-6">Enter a target identifier to retrieve threat assessment data.</p>
+            <div class="max-w-lg mx-auto">
+                <div class="search-group">
+                    <i class="fas fa-search text-gray-600 ml-3"></i>
+                    <input type="text" id="search-input" class="search-input" placeholder="Username or User ID" autocomplete="off">
+                    <button id="search-btn" class="search-action-btn">Search</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Terminal / Loading State -->
+        <div id="terminal" class="hidden max-w-3xl mx-auto mb-8 min-panel bg-black font-mono text-xs shadow-2xl shadow-black/50">
+            <div class="border-b border-[#333] px-3 py-2 text-gray-500 flex justify-between items-center">
+                <div class="flex gap-2">
+                    <div class="w-3 h-3 rounded-full bg-red-900/50 border border-red-800"></div>
+                    <div class="w-3 h-3 rounded-full bg-yellow-900/50 border border-yellow-800"></div>
+                    <div class="w-3 h-3 rounded-full bg-green-900/50 border border-green-800"></div>
+                </div>
+                <span class="text-[10px] uppercase tracking-widest">System_Link_V2</span>
+                <span id="status-indicator" class="text-green-500 animate-pulse-fast">ACTIVE</span>
+            </div>
+            <div id="logs" class="p-4 h-64 overflow-y-auto custom-scroll space-y-1 text-gray-400 bg-[#050505]"></div>
+        </div>
+
+        <!-- Dashboard Content -->
+        <div id="dashboard-container" class="hidden pb-20">
+            <!-- Content injected via JS -->
+        </div>
+    </main>
+
+    <!-- Modals -->
+    <!-- Login Modal -->
+    <div id="modal-login" class="hidden modal-backdrop">
+        <div class="min-panel p-6 w-full max-w-sm bg-black border border-[#333] shadow-2xl">
+            <h3 class="text-lg font-bold mb-2 text-white">SDIS Authorization</h3>
+            <p class="text-xs text-gray-500 mb-4">Enter your secure passphrase to continue.</p>
+            <input type="password" id="login-code" class="min-input w-full mb-4" placeholder="Passphrase">
+            <div class="flex gap-2">
+                <button id="btn-login-submit" class="min-btn flex-1">Authenticate</button>
+                <button onclick="closeModals()" class="min-btn-outline flex-1">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- POI Mark Modal -->
+    <div id="modal-poi" class="hidden modal-backdrop">
+        <div class="min-panel p-6 w-full max-w-md bg-black border border-[#333] shadow-2xl">
+            <h3 class="text-lg font-bold mb-1 text-red-500 uppercase tracking-wider">Mark Subject</h3>
+            <p class="text-xs text-gray-500 mb-4">Designate this user as a Person of Interest.</p>
+            <div class="mb-4">
+                <label class="block text-[10px] uppercase text-gray-500 mb-1">Reasoning</label>
+                <textarea id="poi-reason" class="min-input w-full h-32 resize-none text-sm p-3" placeholder="Detailed reason for designation..."></textarea>
+            </div>
+            <div class="flex gap-2">
+                <button id="btn-poi-submit" class="min-btn bg-red-600 text-white border-none hover:bg-red-700 flex-1">Confirm Designation</button>
+                <button onclick="closeModals()" class="min-btn-outline flex-1">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Ring Selection Modal -->
+    <div id="modal-ring-select" class="hidden modal-backdrop">
+        <div class="min-panel p-6 w-full max-w-sm bg-black border border-[#333]">
+            <h3 id="ring-modal-title" class="text-lg font-bold mb-4 text-white">Ring Management</h3>
+            <div id="ring-list" class="space-y-2 max-h-60 overflow-y-auto custom-scroll mb-4"></div>
+            <div class="flex gap-2">
+                <button id="btn-ring-confirm" class="min-btn flex-1">Confirm</button>
+                <button onclick="closeModals()" class="min-btn-outline flex-1">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create Ring Modal -->
+    <div id="modal-ring-create" class="hidden modal-backdrop">
+        <div class="min-panel p-6 w-full max-w-sm bg-black border border-[#333]">
+            <h3 class="text-lg font-bold mb-4 text-white">Add New Ring</h3>
+            <input type="text" id="new-ring-name" class="min-input w-full mb-3" placeholder="Ring Name">
+            <textarea id="new-ring-desc" class="min-input w-full h-20 mb-3 resize-none" placeholder="Description (Optional)"></textarea>
+            <label class="flex items-center gap-2 text-xs text-gray-400 mb-4 cursor-pointer">
+                <input type="checkbox" id="new-ring-auto-add" checked class="rounded bg-black border-[#333]">
+                Add subject to this ring
+            </label>
+            <div class="flex gap-2">
+                <button id="btn-ring-create-submit" class="min-btn flex-1">Add Ring</button>
+                <button onclick="closeModals()" class="min-btn-outline flex-1">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- Configuration & State ---
+        const AUTH_WORKER = 'https://sdis-authenticator.saikoudevelopment.workers.dev';
+        const DATA_WORKER = 'https://saikou-ban-proxy.saikoudevelopment.workers.dev';
+        const ROTECTOR_API = 'https://roscoe.robalyx.com/v1/lookup/roblox/user';
+        
+        let app = { 
+            user: null, 
+            token: null, 
+            profile: null, 
+            friends: [], 
+            groups: [], 
+            rings: [], 
+            bannedFriends: [],
+            rotector: null,
+            userRings: [],
+            friendSafety: new Map(), // Stores Rotector results for friends
+            friendStats: { unsafe: 0, flagged: 0, scanned: 0, total: 0, errors: 0 }
+        };
+        
+        // Avatar Cache Logic
+        const IMG_CACHE = new Map();
+        
+        // Improved Avatar Fetcher with multiple proxy fallbacks
+        async function getAvatar(id, name) {
+            if (!id || id === 'undefined') return `https://placehold.co/150x150/333/FFF?text=${(name||'?').charAt(0)}`;
+            if (IMG_CACHE.has(id)) return IMG_CACHE.get(id);
+            const placeholder = `https://placehold.co/150x150/333/FFF?text=${(name||'?').charAt(0)}`;
+            
+            const proxies = [
+                (target) => `https://corsproxy.io/?${encodeURIComponent(target)}`,
+                (target) => `https://api.allorigins.win/raw?url=${encodeURIComponent(target)}`
+            ];
+            const robloxApiUrl = `https://thumbnails.roblox.com/v1/users/avatar-headshot?userIds=${id}&size=150x150&format=Png&isCircular=false`;
+
+            for (const makeProxyUrl of proxies) {
+                try {
+                    const r = await fetch(makeProxyUrl(robloxApiUrl));
+                    if (!r.ok) continue;
+                    const data = await r.json();
+                    const url = data.data?.[0]?.imageUrl;
+                    if (url) {
+                        IMG_CACHE.set(id, url);
+                        document.querySelectorAll(`img[data-uid="${id}"]`).forEach(img => img.src = url);
+                        return url;
+                    }
+                } catch(e) {
+                    // Console warn rather than error for missing images to avoid clutter
+                    console.warn(`Avatar fetch failed for ${id}:`, e);
+                }
+            }
+            return placeholder;
+        }
+
+        // --- UI Logic ---
+        function log(msg, type='info') {
+            const d = document.createElement('div');
+            d.className = `log-entry ${type} font-mono text-[11px]`;
+            d.innerHTML = `<span class="opacity-50 mr-2">${new Date().toLocaleTimeString().split(' ')[0]}</span>${msg}`;
+            const c = document.getElementById('logs');
+            if(c) {
+                c.appendChild(d);
+                c.scrollTop = c.scrollHeight;
+            }
+        }
+
+        function toggleModal(id) { document.getElementById(id).classList.remove('hidden'); }
+        function closeModals() { document.querySelectorAll('.modal-backdrop').forEach(m => m.classList.add('hidden')); }
+        
+        // --- Auth Logic ---
+        function initAuth() {
+            const u = localStorage.getItem('sdis_user');
+            const t = localStorage.getItem('sdis_token');
+            if(u && t) { app.user = JSON.parse(u); app.token = t; }
+            renderAuth();
+        }
+
+        function renderAuth() {
+            const btn = document.getElementById('login-container');
+            const card = document.getElementById('user-card');
+            if(app.user) {
+                btn.classList.add('hidden');
+                card.classList.remove('hidden');
+                document.getElementById('user-name').textContent = app.user.displayName || app.user.username;
+                document.getElementById('user-rank').textContent = app.user.sdisRole || "Operative";
+                const userId = app.user.id || app.user.userId || '0';
+                const username = app.user.username || app.user.name || '?';
+                getAvatar(userId, username).then(u => document.getElementById('user-pfp').src = u);
+            } else {
+                btn.classList.remove('hidden');
+                card.classList.add('hidden');
+            }
+        }
+
+        document.getElementById('btn-login').onclick = () => toggleModal('modal-login');
+        document.getElementById('btn-logout').onclick = () => {
+            app.user = null; app.token = null;
+            localStorage.removeItem('sdis_user'); localStorage.removeItem('sdis_token');
+            renderAuth();
+        };
+
+        document.getElementById('btn-login-submit').onclick = async () => {
+            const code = document.getElementById('login-code').value.trim();
+            if(!code) return;
+            
+            const btn = document.getElementById('btn-login-submit');
+            btn.textContent = "Accessing..."; btn.disabled = true;
+            
+            try {
+                const r = await fetch(`${AUTH_WORKER}/login`, {
+                    method:'POST', headers:{'Content-Type':'application/json'},
+                    body: JSON.stringify({ codePhrase: code })
+                });
+                const d = await r.json();
+                if(d.success) {
+                    app.user = d.user; app.token = d.token;
+                    localStorage.setItem('sdis_user', JSON.stringify(d.user));
+                    localStorage.setItem('sdis_token', d.token);
+                    closeModals(); renderAuth();
+                    document.getElementById('login-code').value = '';
+                } else alert(d.error || "Access Denied");
+            } catch(e) { 
+                console.error("Login Error:", e);
+                alert("Connection Failure"); 
+            }
+            btn.textContent = "Authenticate"; btn.disabled = false;
+        };
+
+        // --- Core Search Logic ---
+        async function search(query) {
+            const q = query || document.getElementById('search-input').value.trim();
+            if(!q) return;
+            
+            document.getElementById('search-input').value = q;
+
+            // UI State
+            document.getElementById('dashboard-container').innerHTML = '';
+            document.getElementById('dashboard-container').classList.add('hidden');
+            document.getElementById('terminal').classList.remove('hidden');
+            document.getElementById('logs').innerHTML = '';
+            
+            // Reset State
+            app.rotector = null;
+            app.friendSafety.clear();
+            app.friendStats = { unsafe: 0, flagged: 0, scanned: 0, total: 0, errors: 0 };
+
+            // Mock Terminal output sequence
+            log(`Initializing session...`);
+            await new Promise(r => setTimeout(r, 300));
+            log(`Target Identifier: ${q}`);
+            log(`Connecting to SA-DB...`);
+            
+            try {
+                // Fetch Data from Data Worker (Public/Proxy)
+                const r = await fetch(`${DATA_WORKER}?lookup=${encodeURIComponent(q)}`);
+                const d = await r.json();
+
+                if(!d.success) throw new Error(d.error);
+
+                log(`Data stream received.`, 'success');
+                log(`Parsing threat vectors...`);
+                
+                // Update App State
+                app.profile = d.profile;
+                app.friends = d.friends || [];
+                app.groups = d.profile.groups || [];
+                app.bannedFriends = d.bannedFriends || [];
+                app.friendStats.total = app.friends.length;
+
+                // Default Rings from proxy (Fallback)
+                app.rings = d.ringIndicators || d.rings || [];
+                
+                // --- ROTECTOR INTEGRATION ---
+                if (app.profile.id) {
+                    try {
+                        log(`Querying Rotector AI Safety Matrix...`);
+                        const rotResponse = await fetch(`${ROTECTOR_API}/${app.profile.id}`);
+                        if (rotResponse.ok) {
+                            const rotData = await rotResponse.json();
+                            if (rotData.success) {
+                                app.rotector = rotData.data;
+                                const flagType = app.rotector.flagType;
+                                const flagMsg = flagType === 2 ? "UNSAFE" : flagType === 0 ? "SAFE" : "PENDING";
+                                const logType = flagType === 2 ? "error" : flagType === 0 ? "success" : "warn";
+                                log(`Rotector AI Analysis: ${flagMsg}`, logType);
+                            }
+                        }
+                    } catch(e) {
+                        console.error("Rotector Single Lookup Failed:", e);
+                        log(`Rotector AI connection timed out.`, 'warn');
+                    }
+                }
+
+                await new Promise(r => setTimeout(r, 500)); // UX delay
+
+                // --- PRE-CACHE AVATARS ---
+                if (d.friends) {
+                    d.friends.forEach(f => {
+                        if (f.avatarUrl && !f.avatarUrl.includes('placehold.co')) {
+                            IMG_CACHE.set(f.id, f.avatarUrl);
+                        }
+                    });
+                }
+                if (d.profile.avatarUrl && !d.profile.avatarUrl.includes('placehold.co')) {
+                    IMG_CACHE.set(d.profile.id, d.profile.avatarUrl);
+                }
+
+                // --- AUTH WORKER INTEGRATION (Rings) ---
+                if(app.user) {
+                    try {
+                        log('Authenticating ring access...');
+                        const rr = await fetch(`${AUTH_WORKER}/rings`, {headers:{'Authorization':`Bearer ${app.token}`}});
+                        const rd = await rr.json();
+                        if(rd.success && rd.rings) {
+                            app.userRings = rd.rings;
+                            app.rings = rd.rings.filter(ring => 
+                                ring.members && ring.members.some(m => String(m.userId) === String(app.profile.id))
+                            );
+                            log('Ring vectors updated via SDIS.', 'success');
+                        }
+                    } catch(e) {
+                        console.error("Ring Sync Failed:", e);
+                        log('SDIS Ring Sync Failed - Using Proxy Cache', 'warn');
+                    }
+                }
+
+                renderDashboard(d);
+            } catch(e) {
+                console.error("MAIN SEARCH ERROR:", e);
+                log(`FATAL: ${e.message}`, 'error');
+            }
+        }
+
+        // --- Batch Friend Safety Check ---
+        async function batchCheckFriends() {
+            // FIX: Ensure all IDs are positive Integers to avoid API "ValidationError" (value: -1)
+            const friendIds = app.friends.map(f => parseInt(f.id, 10)).filter(id => !isNaN(id) && id > 0);
+            if (friendIds.length === 0) return;
+
+            const BATCH_SIZE = 100;
+            const statusEl = document.getElementById('friend-scan-status');
+            const statsEl = document.getElementById('friend-stats-display');
+
+            // Initialize UI
+            if(statsEl) statsEl.innerHTML = `<span class="text-gray-500">Initializing...</span>`;
+            
+            // Reset counters
+            app.friendStats = { unsafe: 0, flagged: 0, scanned: 0, total: friendIds.length, errors: 0 };
+
+            for (let i = 0; i < friendIds.length; i += BATCH_SIZE) {
+                const batch = friendIds.slice(i, i + BATCH_SIZE);
+                const batchNum = Math.floor(i/BATCH_SIZE) + 1;
+                
+                if (statusEl) {
+                    const percent = Math.min(100, Math.round(((i) / friendIds.length) * 100));
+                    statusEl.innerHTML = `<i class="fas fa-sync fa-spin text-xs"></i> Scanning ${percent}%`;
+                }
+
+                console.log(`Checking Batch ${batchNum}:`, batch); // DEBUG: Show what is being sent
+
+                try {
+                    const response = await fetch(ROTECTOR_API, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ ids: batch })
+                    });
+
+                    // ----------------------------------------------
+                    // MODIFIED: Explicitly throw error if HTTP status is not OK (e.g., 404, 500, 429)
+                    // and try to get the text response for debugging.
+                    // ----------------------------------------------
+                    if (!response.ok) {
+                        let errText = response.statusText;
+                        try { errText = await response.text(); } catch(e){}
+                        throw new Error(`HTTP ${response.status}: ${errText}`);
+                    }
+
+                    const data = await response.json();
+                    if (data.success && data.data) {
+                        let batchFlags = 0;
+                        Object.values(data.data).forEach(user => {
+                            app.friendSafety.set(String(user.id), user);
+                            if (user.flagType === 2) app.friendStats.unsafe++;
+                            if (user.flagType > 0) {
+                                app.friendStats.flagged++;
+                                batchFlags++;
+                            }
+                        });
+                        app.friendStats.scanned += batch.length;
+                        // Log success to terminal so user knows it actually worked
+                        log(`Batch ${batchNum}: Analyzed ${batch.length} users. ${batchFlags > 0 ? `(${batchFlags} flagged)` : ''}`, 'success');
+                    } else {
+                        // Handle API-level error (where HTTP was 200 but success: false)
+                        console.warn('Batch scan API error:', data);
+                        throw new Error('API responded successfully but reported failure: ' + (data.error || 'Unknown error'));
+                    }
+                } catch (e) {
+                    // ----------------------------------------------
+                    // MODIFIED: Log the full error to the browser console
+                    // ----------------------------------------------
+                    console.error(`Batch ${batchNum} FAILED:`, e);
+                    
+                    log(`Batch ${batchNum}: Failed - Check Console`, 'error');
+                    app.friendStats.errors++;
+                }
+                
+                // Live update
+                updateFriendGrid();
+                updateFriendStatsUI();
+                
+                // Rate limit safety delay
+                await new Promise(r => setTimeout(r, 300));
+            }
+            
+            if (statusEl) statusEl.innerHTML = app.friendStats.errors > 0 ? `<span class="text-red-500">Scan Completed with Errors</span>` : `<span class="text-gray-500">Scan Complete</span>`;
+            updateFriendStatsUI();
+        }
+
+        function updateFriendStatsUI() {
+            const el = document.getElementById('friend-stats-display');
+            if (!el) return;
+
+            if (app.friendStats.errors > 0) {
+                el.innerHTML = `<span class="text-red-500 font-bold" title="Some batches failed"><i class="fas fa-exclamation-circle"></i> Errors Detected (${app.friendStats.errors})</span>`;
+            } else if (app.friendStats.unsafe > 0) {
+                el.innerHTML = `<span class="text-red-500 font-bold animate-pulse"><i class="fas fa-exclamation-triangle"></i> ${app.friendStats.unsafe} Unsafe Found</span>`;
+            } else if (app.friendStats.flagged > 0) {
+                el.innerHTML = `<span class="text-yellow-500 font-bold"><i class="fas fa-flag"></i> ${app.friendStats.flagged} Flagged</span>`;
+            } else if (app.friendStats.scanned >= app.friendStats.total) {
+                 el.innerHTML = `<span class="text-green-500"><i class="fas fa-check"></i> All Clean</span>`;
+            } else {
+                el.innerHTML = `<span class="text-gray-500">${app.friendStats.scanned}/${app.friendStats.total} Scanned</span>`;
+            }
+        }
+
+        // --- POI Details Fetcher (Runs AFTER Render) ---
+        async function fetchPOIDetails(userId) {
+            const container = document.getElementById('poi-data-container');
+            const loginMsg = document.getElementById('poi-login-msg');
+            const reasonEl = document.getElementById('poi-reason-text');
+            const markerEl = document.getElementById('poi-marker');
+            const dateEl = document.getElementById('poi-date');
+
+            if (!app.token) {
+                if(loginMsg) loginMsg.classList.remove('hidden');
+                return;
+            }
+
+            if(container) container.classList.remove('hidden');
+
+            try {
+                const response = await fetch(`${DATA_WORKER}/poi/${userId}`, {
+                    headers: { 'Authorization': `Bearer ${app.token}` }
+                });
+                const result = await response.json();
+                
+                if (result.success && result.data) {
+                    const data = result.data;
+                    if(markerEl) markerEl.textContent = data.markedBy || 'Unknown';
+                    if(reasonEl) reasonEl.textContent = data.reason || 'No reason provided.';
+                    if(dateEl) dateEl.textContent = data.timestamp ? new Date(data.timestamp).toLocaleDateString() : 'Unknown';
+                } else {
+                    if(reasonEl) reasonEl.textContent = "Error loading confidential details.";
+                }
+            } catch (e) {
+                console.error("POI Fetch Failed:", e);
+                if(reasonEl) reasonEl.textContent = "Connection failed.";
+            }
+        }
+
+        // --- Dashboard Rendering ---
+        function renderDashboard(data) {
+            document.getElementById('terminal').classList.add('hidden');
+            const container = document.getElementById('dashboard-container');
+            container.classList.remove('hidden');
+            
+            const p = data.profile;
+            const risk = calculateSafetyScore(p, app.friends, app.rings, app.bannedFriends, app.rotector);
+            
+            // Risk Colors
+            let rColor = "text-green-500"; let rBorder = "border-white";
+            if(risk.rating === 'Unsafe') { rColor = "text-red-500"; rBorder = "border-red-600"; }
+            else if(risk.rating === 'Caution') { rColor = "text-yellow-500"; rBorder = "border-yellow-500"; }
+
+            // Helper for role styling
+            const getRoleStyle = (role) => {
+                switch(role) {
+                    case 'Leader': return 'bg-red-500 text-white border-red-400';
+                    case 'Figurehead': return 'bg-purple-500 text-white border-purple-400';
+                    case 'Alt': return 'bg-yellow-500 text-black border-yellow-400';
+                    case 'Smurf': return 'bg-blue-500 text-white border-blue-400';
+                    case 'Associate': return 'bg-green-500 text-white border-green-400';
+                    default: return 'bg-gray-600 text-white border-gray-500'; 
+                }
+            };
+
+            // Construct HTML Grid
+            container.innerHTML = `
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    
+                    <!-- LEFT COLUMN: Identity -->
+                    <div class="space-y-6">
+                        <div class="min-panel p-6 text-center relative ${p.isPOI ? 'poi-border border-2' : ''}">
+                            <!-- Action Menu -->
+                            <div class="absolute top-4 right-4 group">
+                                <button class="text-gray-500 hover:text-white p-2"><i class="fas fa-ellipsis-v"></i></button>
+                                <div class="hidden group-hover:block absolute right-0 mt-0 w-48 bg-[#111] border border-[#333] rounded z-10 text-left text-sm shadow-xl">
+                                    <button onclick="navigator.clipboard.writeText(window.location.href)" class="block w-full text-left px-4 py-3 text-gray-300 hover:bg-[#222] hover:text-white transition-colors">
+                                        <i class="fas fa-share-alt mr-2 w-4 text-center"></i> Copy Link
+                                    </button>
+                                    <div class="h-px bg-[#222]"></div>
+                                    ${app.user ? `
+                                        <button onclick="openRingModal('add')" class="block w-full text-left px-4 py-3 text-gray-300 hover:bg-[#222] hover:text-white transition-colors">
+                                            <i class="fas fa-plus-circle mr-2 w-4 text-center"></i> Add to Ring
+                                        </button>
+                                        <button onclick="openRingModal('remove')" class="block w-full text-left px-4 py-3 text-gray-300 hover:bg-[#222] hover:text-white transition-colors">
+                                            <i class="fas fa-minus-circle mr-2 w-4 text-center"></i> Remove Ring
+                                        </button>
+                                        <div class="h-px bg-[#222]"></div>
+                                        ${!p.isPOI ? `
+                                            <button onclick="toggleModal('modal-poi')" class="block w-full text-left px-4 py-3 text-red-400 hover:bg-red-900/20 transition-colors">
+                                                <i class="fas fa-exclamation-triangle mr-2 w-4 text-center"></i> Mark POI
+                                            </button>` 
+                                        : `
+                                            <button onclick="unmarkPoi()" class="block w-full text-left px-4 py-3 text-green-400 hover:bg-green-900/20 transition-colors">
+                                                <i class="fas fa-check mr-2 w-4 text-center"></i> Unmark POI
+                                            </button>`
+                                        }
+                                    ` : '<div class="px-4 py-3 text-[10px] text-gray-600 uppercase text-center">Login for actions</div>'}
+                                </div>
+                            </div>
+
+                            <div class="relative inline-block mb-4">
+                                <img src="${p.avatarUrl}" class="w-32 h-32 rounded-full border-2 border-[#333] bg-gray-900 object-cover" data-uid="${p.id}">
+                                ${p.isBanned ? '<div class="absolute bottom-0 right-0 bg-red-600 text-white text-[10px] font-bold px-2 py-1 rounded shadow border border-black">BANNED</div>' : ''}
+                            </div>
+                            
+                            <h2 class="text-xl font-bold text-white">${p.displayName}</h2>
+                            <p class="text-sm text-gray-500 font-mono mb-6">@${p.name} <span class="mx-1">|</span> ID: ${p.id}</p>
+                            
+                            <!-- POI DOSSIER CARD -->
+                            ${p.isPOI ? `
+                                <div class="poi-alert-card mb-6 text-left relative overflow-hidden">
+                                    <div class="flex items-start gap-4">
+                                        <i class="fas fa-exclamation-triangle text-red-500 text-3xl mt-1"></i>
+                                        <div class="w-full">
+                                            <h3 class="text-xl font-bold text-red-400 uppercase tracking-wider">Person of Interest</h3>
+                                            <p class="text-xs text-gray-300 mb-3 leading-tight">This user has been flagged by SDIS. Exercise extreme caution.</p>
+                                            
+                                            <!-- Content Container -->
+                                            <div id="poi-data-container" class="hidden space-y-3 pt-3 border-t border-red-500/30">
+                                                <div>
+                                                    <div class="text-[10px] uppercase text-red-400/70 font-bold mb-1">Reason for Designation</div>
+                                                    <div id="poi-reason-text" class="text-xs text-gray-200 bg-red-950/40 p-2 rounded border border-red-900/50 font-mono leading-relaxed">Loading dossier...</div>
+                                                </div>
+                                                <div class="flex justify-between items-end text-[10px] font-mono text-gray-400">
+                                                    <div>
+                                                        <div class="flex items-center gap-1"><i class="fas fa-user-shield"></i> <span id="poi-marker">...</span></div>
+                                                        <div class="flex items-center gap-1 mt-0.5"><i class="fas fa-calendar"></i> <span id="poi-date">...</span></div>
+                                                    </div>
+                                                    ${app.user ? `<button onclick="unmarkPoi()" class="text-red-500 hover:text-white hover:underline">Revoke</button>` : ''}
+                                                </div>
+                                            </div>
+                                            
+                                            <!-- Restricted Message -->
+                                            <div id="poi-login-msg" class="hidden text-xs text-red-300 bg-red-900/20 p-2 rounded border border-red-800/50 mt-2 flex items-center gap-2">
+                                                <i class="fas fa-lock"></i> Restricted Dossier - Login to View Details
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            ` : ''}
+
+                            <div class="flex justify-center gap-2 mb-6">
+                                <a href="https://www.roblox.com/users/${p.id}/profile" target="_blank" class="min-btn-outline text-xs"><i class="fas fa-external-link-alt mr-1"></i> Roblox</a>
+                                <button onclick="navigator.clipboard.writeText('${p.id}')" class="min-btn-outline text-xs"><i class="fas fa-copy mr-1"></i> ID</button>
+                            </div>
+
+                            <div class="grid grid-cols-3 gap-2 pt-6 border-t border-[#333]">
+                                <div><div class="font-bold text-white text-lg">${formatNumber(p.friendCount)}</div><div class="text-[10px] text-gray-600 uppercase">Friends</div></div>
+                                <div><div class="font-bold text-white text-lg">${formatNumber(p.groupCount)}</div><div class="text-[10px] text-gray-600 uppercase">Groups</div></div>
+                                <div><div class="font-bold text-white text-lg">${formatNumber(p.badgeCount)}</div><div class="text-[10px] text-gray-600 uppercase">Badges</div></div>
+                            </div>
+                        </div>
+
+                        <!-- Meta Info -->
+                        <div class="min-panel p-5 space-y-3 text-sm">
+                            <h3 class="text-xs font-bold text-gray-500 uppercase mb-3">Metadata</h3>
+                            <div class="flex justify-between"><span class="text-gray-500">Created</span><span class="font-mono text-xs text-white">${new Date(p.created).toLocaleDateString()}</span></div>
+                            <div class="flex justify-between"><span class="text-gray-500">Age</span><span class="font-mono text-xs text-white">${p.accountAge} days</span></div>
+                            <div class="flex justify-between"><span class="text-gray-500">Verified</span><span class="text-white">${p.hasVerifiedBadge ? 'Yes' : 'No'}</span></div>
+                            <div class="flex justify-between"><span class="text-gray-500">Premium</span><span class="text-white">${p.isPremium ? 'Yes' : 'No'}</span></div>
+                            <div class="pt-3 border-t border-[#333]">
+                                <div class="text-[10px] text-gray-600 uppercase mb-1">Bio</div>
+                                <div class="text-xs text-gray-400 italic break-words">${p.description || "No description."}</div>
+                                ${risk.decoded ? `
+                                    <div class="mt-2 bg-yellow-900/20 border border-yellow-900/50 p-2 rounded">
+                                        <div class="text-[10px] text-yellow-600 uppercase font-bold mb-1"><i class="fas fa-unlock mr-1"></i>Decoded</div>
+                                        <div class="text-xs text-yellow-500/80 font-mono">${risk.decoded}</div>
+                                    </div>` 
+                                : ''}
+                            </div>
+                        </div>
+
+                        <!-- Ban History -->
+                        <div class="min-panel p-5">
+                            <h3 class="text-xs font-bold text-gray-500 uppercase mb-3">Disciplinary Record</h3>
+                            ${(data.banHistory && data.banHistory.length) ? 
+                                `<div class="space-y-2 max-h-40 overflow-y-auto custom-scroll pr-1">
+                                    ${data.banHistory.map(b => `
+                                        <div class="border border-[#333] p-2 bg-[#111] rounded text-xs">
+                                            <div class="font-bold text-white flex justify-between">
+                                                <span>${b.Reason}</span>
+                                                <span class="text-[10px] px-1 bg-red-900 text-red-200 rounded">${b.type==='permban'?'PERM':'TEMP'}</span>
+                                            </div>
+                                            <div class="text-gray-500 mt-1 flex justify-between">
+                                                <span>${new Date(b.Date).toLocaleDateString()}</span>
+                                                <span>By: ${b.Moderator}</span>
+                                            </div>
+                                        </div>
+                                    `).join('')}
+                                </div>` 
+                                : `<div class="text-gray-600 text-xs italic">Clean record on file.</div>`
+                            }
+                        </div>
+                    </div>
+
+                    <!-- RIGHT COLUMN: Risk & Associations -->
+                    <div class="lg:col-span-2 space-y-6">
+                        
+                        <!-- Threat Assessment -->
+                        <div class="min-panel p-6 border-l-2 ${rBorder}">
+                            <div class="flex justify-between items-start mb-4">
+                                <div>
+                                    <h3 class="text-lg font-bold text-white">Threat Assessment</h3>
+                                    <div class="text-xs font-mono mt-1 text-gray-500 uppercase tracking-widest ${rColor}">${risk.rating} RISK // SCORE: ${risk.score}</div>
+                                </div>
+                                <div class="text-right">
+                                    <div class="text-4xl font-black ${rColor}">${risk.score}</div>
+                                    ${app.rotector && app.rotector.flagType > 0 ? `
+                                        <div class="text-[9px] text-gray-500 uppercase font-mono mt-1">AI Confidence: ${(app.rotector.confidence * 100).toFixed(0)}%</div>
+                                    ` : ''}
+                                </div>
+                            </div>
+                            
+                            <div class="w-full bg-[#222] h-1.5 rounded-full overflow-hidden mb-6">
+                                <div class="risk-bar-fill ${risk.rating === 'Unsafe' ? 'bg-red-600' : risk.rating === 'Caution' ? 'bg-yellow-500' : 'bg-green-500'}" style="width: ${risk.score}%"></div>
+                            </div>
+
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
+                                ${risk.reasons.negative.map(r => `
+                                    <div class="border border-[#333] bg-red-900/5 p-2 rounded flex items-center justify-between">
+                                        <div class="flex items-center gap-2 overflow-hidden">
+                                            <div class="w-6 h-6 rounded-full bg-red-900/20 text-red-500 flex items-center justify-center text-[10px] flex-shrink-0">
+                                                <i class="fas ${r.icon}"></i>
+                                            </div>
+                                            <span class="text-xs text-gray-300 truncate" title="${r.text}">${r.text}</span>
+                                        </div>
+                                        <span class="text-xs font-mono text-red-500 font-bold ml-2">${r.weight}</span>
+                                    </div>
+                                `).join('')}
+                                ${risk.reasons.positive.map(r => `
+                                    <div class="border border-[#333] bg-green-900/5 p-2 rounded flex items-center justify-between">
+                                        <div class="flex items-center gap-2 overflow-hidden">
+                                            <div class="w-6 h-6 rounded-full bg-green-900/20 text-green-500 flex items-center justify-center text-[10px] flex-shrink-0">
+                                                <i class="fas ${r.icon}"></i>
+                                            </div>
+                                            <span class="text-xs text-gray-300 truncate" title="${r.text}">${r.text}</span>
+                                        </div>
+                                        <span class="text-xs font-mono text-green-500 font-bold ml-2">+${r.weight}</span>
+                                    </div>
+                                `).join('')}
+                            </div>
+
+                            <!-- Rotector Detailed Analysis Block -->
+                            ${(app.rotector && app.rotector.reasons && Object.keys(app.rotector.reasons).length > 0) ? `
+                                <div class="mt-4 pt-4 border-t border-[#333]">
+                                    <div class="text-xs font-bold text-gray-500 uppercase mb-3 flex items-center gap-2">
+                                        <i class="fas fa-brain text-orange-500"></i> AI Intelligence Report
+                                    </div>
+                                    <div class="space-y-3">
+                                        ${Object.entries(app.rotector.reasons).map(([name, data]) => `
+                                            <div class="bg-[#111] border border-[#333] rounded p-4 relative overflow-hidden">
+                                                <div class="absolute left-0 top-0 bottom-0 w-1 bg-orange-600"></div>
+                                                <div class="flex justify-between items-start mb-1">
+                                                    <span class="text-orange-500 font-bold text-sm">${name} <span class="text-xs opacity-75 ml-1 text-gray-500">(${(data.confidence*100).toFixed(0)}%)</span></span>
+                                                </div>
+                                                <p class="text-gray-300 text-xs mb-3 leading-relaxed">${data.message}</p>
+                                                ${data.evidence ? `
+                                                    <div class="bg-[#000] border border-[#222] rounded p-2 text-[10px] font-mono text-gray-500 break-all relative">
+                                                        <span class="absolute top-[-8px] left-2 bg-[#000] px-1 text-[8px] uppercase text-gray-600">Evidence</span>
+                                                        ${Array.isArray(data.evidence) ? data.evidence.join('<br>') : data.evidence}
+                                                    </div>
+                                                ` : ''}
+                                            </div>
+                                        `).join('')}
+                                    </div>
+                                </div>
+                            ` : ''}
+
+                        </div>
+
+                        <!-- Rings -->
+                        ${app.rings.length > 0 ? `
+                            <div class="min-panel p-5 border-l-2 border-red-600 bg-red-900/5">
+                                <h3 class="text-sm font-bold text-white uppercase mb-3 flex items-center gap-2">
+                                    <i class="fas fa-link text-red-500"></i> Ring Affiliations
+                                </h3>
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    ${app.rings.map(r => {
+                                        const mem = r.members ? r.members.find(m => String(m.userId) === String(p.id)) : null;
+                                        const role = mem ? mem.role : 'Member';
+                                        const count = r.members ? r.members.length : 0;
+                                        const roleStyle = getRoleStyle(role);
+                                        return `
+                                        <div class="border border-[#333] bg-[#111] p-3 rounded hover:border-[#555] transition-colors relative group cursor-pointer" onclick="openRingModal('remove')" title="${r.description||''}">
+                                            <div class="flex justify-between items-start mb-2">
+                                                <div class="text-red-300 font-bold text-sm truncate pr-2">${r.name}</div>
+                                                <div class="text-[10px] text-gray-500 flex-shrink-0 bg-[#222] px-1.5 py-0.5 rounded border border-[#333] flex items-center gap-1">
+                                                    <i class="fas fa-users"></i> ${count}
+                                                </div>
+                                            </div>
+                                            <div class="flex items-center justify-between">
+                                                <span class="text-[10px] uppercase font-bold px-2 py-0.5 rounded border ${roleStyle} shadow-sm tracking-wider">
+                                                    ${role}
+                                                </span>
+                                                <span class="text-[9px] text-gray-600 font-mono">${r.isActive !== false ? 'ACTIVE' : 'INACTIVE'}</span>
+                                            </div>
+                                        </div>
+                                        `;
+                                    }).join('')}
+                                </div>
+                            </div>
+                        ` : ''}
+
+                        <!-- Associates Grid -->
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <!-- Friends -->
+                            <div class="min-panel p-5 flex flex-col h-[400px]">
+                                <div class="flex justify-between items-center mb-4 border-b border-[#333] pb-2">
+                                    <div class="flex items-center gap-2">
+                                        <h3 class="text-sm font-bold text-white uppercase">Associates</h3>
+                                        <div id="friend-scan-status" class="text-[9px] text-gray-500 font-mono"></div>
+                                    </div>
+                                    <div id="friend-stats-display" class="text-[10px] font-mono">
+                                        <span class="text-gray-600">Waiting...</span>
+                                    </div>
+                                </div>
+                                <div id="friends-grid-target" class="grid grid-cols-4 gap-2 mb-4 content-start flex-1 overflow-y-auto custom-scroll"></div>
+                                <div class="flex justify-between pt-2 border-t border-[#333] items-center">
+                                    <button id="f-prev" class="text-xs text-gray-500 hover:text-white px-3 py-2 disabled:opacity-20">Prev</button>
+                                    <div id="friend-pager-indicator" class="text-[10px] text-gray-500 px-2"></div>
+                                    <button id="f-next" class="text-xs text-gray-500 hover:text-white px-3 py-2 disabled:opacity-20">Next</button>
+                                </div>
+                            </div>
+
+                            <!-- Groups -->
+                            <div class="min-panel p-5 flex flex-col h-[400px]">
+                                <div class="flex justify-between items-center mb-4">
+                                    <h3 class="text-sm font-bold text-white uppercase">Groups</h3>
+                                    <span class="text-xs text-gray-500 font-mono">${app.groups.length} Total</span>
+                                </div>
+                                <div class="space-y-1 overflow-y-auto custom-scroll flex-1 pr-1">
+                                    ${app.groups.map(g => `
+                                        <div class="flex items-center justify-between p-2 border border-transparent hover:border-[#333] hover:bg-[#111] rounded transition-colors group">
+                                            <div class="flex items-center gap-3 overflow-hidden">
+                                                <div class="w-8 h-8 bg-[#222] rounded flex-shrink-0 flex items-center justify-center text-gray-600">
+                                                    <i class="fas fa-users text-xs"></i>
+                                                </div>
+                                                <div class="min-w-0">
+                                                    <div class="text-xs text-white font-bold truncate">${g.name}</div>
+                                                    <div class="text-[10px] text-gray-500 truncate">${g.role || 'Member'}</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    `).join('')}
+                                    ${app.groups.length === 0 ? '<div class="text-gray-600 text-xs text-center mt-10">No public groups found.</div>' : ''}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            // Post-render actions
+            initFriendPager();
+            batchCheckFriends(); // AUTO START BATCH SCAN
+            if (p.isPOI) {
+                fetchPOIDetails(p.id);
+            }
+        }
+
+        // ... (Existing Friend Pager, Utils, Ring Actions Logic remains unchanged) ...
+        
+        // --- Friend Pager Logic ---
+        let fPage = 1;
+        const fPer = 12; 
+
+        function initFriendPager() {
+            fPage = 1;
+            updateFriendGrid();
+            document.getElementById('f-prev').onclick = () => { fPage--; updateFriendGrid(); };
+            document.getElementById('f-next').onclick = () => { fPage++; updateFriendGrid(); };
+        }
+
+        function updateFriendGrid() {
+            const t = document.getElementById('friends-grid-target');
+            if(!t) return;
+            t.innerHTML = '';
+            const start = (fPage - 1) * fPer;
+            const slice = app.friends.slice(start, start + fPer);
+            
+            slice.forEach(async f => {
+                const isBanned = app.bannedFriends.some(bf => String(bf.id) === String(f.id));
+                const safetyData = app.friendSafety.get(String(f.id));
+                
+                // Styling based on Safety Status
+                let borderClass = 'border-transparent';
+                let bgClass = 'bg-[#111]';
+                let glowEffect = '';
+                let statusBadge = '';
+
+                if (isBanned) {
+                    borderClass = 'border-red-600';
+                    statusBadge = '<div class="absolute top-1 right-1 text-[8px] bg-red-600 text-white px-1.5 py-0.5 font-bold rounded z-10 shadow-sm">BANNED</div>';
+                    glowEffect = 'shadow-[0_0_10px_rgba(220,38,38,0.2)]';
+                } else if (safetyData) {
+                    if (safetyData.flagType === 2) { // Unsafe
+                        borderClass = 'border-red-600';
+                        bgClass = 'bg-red-950/20';
+                        glowEffect = 'shadow-[0_0_10px_rgba(220,38,38,0.1)]';
+                        statusBadge = '<div class="absolute top-1 left-1 text-[8px] bg-red-600 text-white px-1.5 py-0.5 font-bold rounded z-10 shadow-sm"><i class="fas fa-exclamation-triangle"></i></div>';
+                    } else if (safetyData.flagType === 1 || safetyData.flagType === 5) { // Pending/Mixed
+                         borderClass = 'border-yellow-600/50';
+                    } else if (safetyData.flagType === 6) { // Past Offender
+                         borderClass = 'border-orange-600';
+                         glowEffect = 'shadow-[0_0_10px_rgba(234,88,12,0.2)]';
+                         statusBadge = '<div class="absolute top-1 left-1 text-[8px] bg-orange-600 text-white px-1.5 py-0.5 font-bold rounded z-10 shadow-sm"><i class="fas fa-history"></i></div>';
+                    }
+                }
+
+                const div = document.createElement('div');
+                div.className = `${bgClass} p-2 rounded text-center cursor-pointer hover:bg-[#222] transition relative group border ${borderClass} ${glowEffect}`;
+                div.onclick = () => search(f.name);
+                
+                const imgId = `f-img-${f.id}`;
+                let initialSrc = 'https://placehold.co/100x100/333/FFF';
+                if (IMG_CACHE.has(f.id)) { initialSrc = IMG_CACHE.get(f.id); }
+                else if (f.avatarUrl && !f.avatarUrl.includes('placehold.co')) { initialSrc = f.avatarUrl; IMG_CACHE.set(f.id, f.avatarUrl); }
+
+                div.innerHTML = `
+                    ${statusBadge}
+                    <img id="${imgId}" src="${initialSrc}" class="w-full aspect-square bg-black mb-2 rounded-sm object-cover opacity-${isBanned?60:100}" data-uid="${f.id}">
+                    <div class="text-[10px] truncate text-gray-400 font-mono group-hover:text-white" title="${f.displayName || f.name} (@${f.name})">${f.name}</div>
+                `;
+                t.appendChild(div);
+                
+                // --- ERROR FIX START ---
+                if (!IMG_CACHE.has(f.id)) { 
+                    const url = await getAvatar(f.id, f.name); 
+                    const imgEl = document.getElementById(imgId); // Safety check
+                    if (imgEl) imgEl.src = url; 
+                }
+                // --- ERROR FIX END ---
+            });
+            document.getElementById('friend-pager-indicator').textContent = `Pg ${fPage}/${Math.ceil(app.friends.length/fPer)}`;
+            document.getElementById('f-prev').disabled = fPage === 1;
+            document.getElementById('f-next').disabled = (start + fPer) >= app.friends.length;
+        }
+
+        function formatNumber(num) { return num ? num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",") : "0"; }
+
+        async function submitPoi() {
+            const r = document.getElementById('poi-reason').value; if(!r) return;
+            const btn = document.getElementById('btn-poi-submit');
+            btn.textContent = "Processing..."; btn.disabled = true;
+            try { 
+                await fetch(`${DATA_WORKER}/poi`, {method:'POST', headers:{'Content-Type':'application/json', 'Authorization': `Bearer ${app.token}`}, body:JSON.stringify({userId:app.profile.id, username:app.profile.name, displayName:app.profile.displayName, reason:r, markedBy:app.user.username, timestamp: new Date().toISOString(), avatarUrl: app.profile.avatarUrl})}); 
+                closeModals(); search(app.profile.id); 
+            } catch(e) {
+                console.error("POI Submit Failed:", e);
+                alert('Failed to mark POI'); 
+            }
+            btn.textContent = "Confirm Designation"; btn.disabled = false;
+        }
+        document.getElementById('btn-poi-submit').onclick = submitPoi;
+
+        async function unmarkPoi() {
+            if(!confirm("Remove POI designation?")) return;
+            try { 
+                await fetch(`${DATA_WORKER}/poi/${app.profile.id}`, {method:'DELETE', headers:{'Authorization': `Bearer ${app.token}`}});
+                search(app.profile.id);
+            } catch(e) {
+                console.error("Unmark POI Failed:", e);
+                alert('Error unmarking'); 
+            }
+        }
+
+        let ringActionType = null;
+        async function openRingModal(type) {
+            ringActionType = type;
+            toggleModal('modal-ring-select');
+            const list = document.getElementById('ring-list');
+            const title = document.getElementById('ring-modal-title');
+            title.textContent = type === 'add' ? 'Add To Ring' : 'Remove From Ring';
+            list.innerHTML = '<div class="text-gray-500 text-xs text-center py-4">Loading rings...</div>';
+            if(app.userRings.length === 0) {
+                try {
+                    const r = await fetch(`${AUTH_WORKER}/rings`, {headers:{'Authorization':`Bearer ${app.token}`}});
+                    const d = await r.json();
+                    app.userRings = d.rings || [];
+                } catch(e) {
+                    console.error("Open Ring Modal Failed:", e);
+                    list.innerHTML = 'Error loading rings. Check console.'; 
+                    return; 
+                }
+            }
+            let displayRings = app.userRings;
+            if(type === 'remove') {
+                displayRings = app.userRings.filter(r => app.rings.some(ar => ar.id === r.id));
+            }
+            list.innerHTML = `
+                <button onclick="toggleModal('modal-ring-create'); closeModals();" class="w-full mb-2 p-2 border border-dashed border-[#333] text-gray-500 text-xs hover:border-white hover:text-white transition-colors rounded">+ Add New Ring</button>
+                ${displayRings.map(r => `
+                    <label class="flex items-center gap-3 p-3 bg-[#111] border border-[#222] rounded cursor-pointer hover:border-[#444]">
+                        <input type="radio" name="sel-ring" value="${r.id}" class="accent-white">
+                        <div>
+                            <div class="text-sm font-bold text-white">${r.name}</div>
+                            <div class="text-[10px] text-gray-500">${r.members?.length||0} members</div>
+                        </div>
+                    </label>
+                `).join('')}
+            `;
+        }
+
+        document.getElementById('btn-ring-confirm').onclick = async () => {
+            const id = document.querySelector('input[name="sel-ring"]:checked')?.value;
+            if(!id) return;
+            try {
+                const ep = `${AUTH_WORKER}/rings/${id}/members`;
+                const method = ringActionType === 'add' ? 'POST' : 'DELETE';
+                const body = { members: [{userId:app.profile.id, username:app.profile.name}] };
+                if(ringActionType === 'remove') body.userIds = [app.profile.id];
+                await fetch(ep, {
+                    method: method,
+                    headers: {'Content-Type':'application/json', 'Authorization':`Bearer ${app.token}`},
+                    body: JSON.stringify(body)
+                });
+                closeModals(); search(app.profile.id);
+            } catch(e) {
+                console.error("Ring Confirm Action Failed:", e);
+                alert('Action failed. Check console.'); 
+            }
+        };
+
+        document.getElementById('btn-ring-create-submit').onclick = async () => {
+            const name = document.getElementById('new-ring-name').value;
+            const desc = document.getElementById('new-ring-desc').value;
+            const add = document.getElementById('new-ring-auto-add').checked;
+            if(!name) return;
+            try {
+                await fetch(`${AUTH_WORKER}/rings`, {
+                    method: 'POST',
+                    headers: {'Content-Type':'application/json', 'Authorization':`Bearer ${app.token}`},
+                    body: JSON.stringify({
+                        name, description: desc,
+                        initialMembers: add ? [{userId:app.profile.id, username:app.profile.name}] : []
+                    })
+                });
+                const r = await fetch(`${AUTH_WORKER}/rings`, {headers:{'Authorization':`Bearer ${app.token}`}});
+                const d = await r.json();
+                app.userRings = d.rings;
+                closeModals(); 
+                if(add) search(app.profile.id);
+            } catch(e) {
+                console.error("Ring Create Failed:", e);
+                alert('Create failed. Check console.'); 
+            }
+        }
+
+        const MORSE_CODE = { '.-': 'A', '-...': 'B', '-.-.': 'C', '-..': 'D', '.': 'E', '..-.': 'F', '--.': 'G', '....': 'H', '..': 'I', '.---': 'J', '-.-': 'K', '.-..': 'L', '--': 'M', '-.': 'N', '---': 'O', '.--.': 'P', '--.-': 'Q', '.-.': 'R', '...': 'S', '-': 'T', '..-': 'U', '...-': 'V', '.--': 'W', '-..-': 'X', '-.--': 'Y', '--..': 'Z', '-----': '0', '.----': '1', '..---': '2', '...--': '3', '....-': '4', '.....': '5', '-....': '6', '--...': '7', '---..': '8', '----.': '9', '/': ' ', '-...-': '=', '.-.-.-': '.', '--..--': ',', '..--..': '?', '.----.': "'", '-.-.--': '!', '-..-.': '/', '-.--.': '(', '-.--.-': ')', '.-...': '&', '---...': ':', '-.-.-.': ';', '-....-': '-', '..--.-': '_', '.-..-.': '"', '...-..-': '$', '.--.-.': '@' };
+        function decodeMorse(text) { return text.split('   ').map( word => word.split(' ').map( code => MORSE_CODE[code] || '' ).join('') ).join(' ').trim(); }
+
+        function calculateSafetyScore(profile, friends, rings, bannedFriends, rotector) {
+            let score = 50;
+            let reasons = { positive: [], negative: [] };
+            let decoded = null;
+            const text = (profile.description || "").toLowerCase();
+            const rot13 = (s) => s.replace(/[a-z]/gi, c => String.fromCharCode((c<='Z'?90:122)>=(c=c.charCodeAt(0)+13)?c:c-26));
+            
+            if (text.includes('discord') || text.includes('cord') || text.includes('snap')) { score -= 20; reasons.negative.push({text: "Solicitation keywords detected", weight: -20, icon: "fa-comment-slash"}); }
+            if(!text.includes(' ') && text.length > 10) {
+                const dec = rot13(text);
+                if(dec.includes('game') || dec.includes('join') || dec.includes('discord')) { score -= 30; reasons.negative.push({text: "Obfuscated text detected (ROT13)", weight: -30, icon: "fa-user-secret"}); decoded = dec; }
+            }
+            if (/[.-]{1,5}(\s+[.-]{1,5})+/.test(profile.description)) {
+                const morseMatches = profile.description.match(/[.-]{1,5}(\s+[.-]{1,5})+/g);
+                if (morseMatches) {
+                    const decodedMorse = morseMatches.map(m => decodeMorse(m)).join(' ');
+                    if (decodedMorse.length > 3) { score -= 30; reasons.negative.push({text: "Morse Code Detected", weight: -30, icon: "fa-code"}); decoded = `[MORSE]: ${decodedMorse}`; }
+                }
+            }
+
+            const age = profile.accountAge || 0;
+            if(age < 30) { score -= 30; reasons.negative.push({text: "Account < 30 days old", weight: -30, icon: "fa-baby"}); }
+            else if(age > 365*2) { score += 20; reasons.positive.push({text: "Veteran Account (2+ Years)", weight: 20, icon: "fa-star"}); }
+
+            if(profile.isBanned) { score -= 80; reasons.negative.push({text: "Active Saikou Ban", weight: -80, icon: "fa-ban"}); }
+            if(bannedFriends.length > 0) { const pen = Math.min(40, bannedFriends.length * 10); score -= pen; reasons.negative.push({text: `Linked to ${bannedFriends.length} banned user(s)`, weight: -pen, icon: "fa-users-slash"}); }
+            if(rings && rings.length > 0) { score -= 50; reasons.negative.push({text: `Member of ${rings.length} Exploiter Ring(s)`, weight: -50, icon: "fa-link"}); }
+            if(profile.isPOI) { score -= 50; reasons.negative.push({text: "Designated Person of Interest", weight: -50, icon: "fa-exclamation-triangle"}); }
+
+            if (rotector) {
+                if (rotector.flagType === 2) { score -= 60; reasons.negative.push({text: "Rotector AI: Unsafe", weight: -60, icon: "fa-robot"}); }
+                else if (rotector.flagType === 5 || rotector.flagType === 6) { score -= 20; reasons.negative.push({text: "Rotector AI: Flagged Pattern", weight: -20, icon: "fa-robot"}); }
+                else if (rotector.flagType === 0) { score += 5; reasons.positive.push({text: "Rotector AI: Clean Analysis", weight: 5, icon: "fa-shield-virus"}); }
+            }
+
+            if(profile.hasVerifiedBadge) { score += 15; reasons.positive.push({text: "Verified Badge", weight: 15, icon: "fa-check-circle"}); }
+            if(profile.isPremium) { score += 10; reasons.positive.push({text: "Premium Subscriber", weight: 10, icon: "fa-gem"}); }
+
+            score = Math.max(0, Math.min(100, score));
+            let rating = "Safe";
+            if(score < 40) rating = "Unsafe"; else if(score < 70) rating = "Caution";
+            return { score, rating, reasons, decoded };
+        }
+
+        initAuth();
+        document.getElementById('search-input').addEventListener('keydown', (e) => { if(e.key==='Enter') search(); });
+        document.getElementById('search-btn').onclick = () => search();
+        
+        window.openRingModal = openRingModal;
+        window.unmarkPoi = unmarkPoi;
+        window.search = search;
+
+        const urlParams = new URLSearchParams(window.location.search);
+        if(urlParams.has('lookup')) search(urlParams.get('lookup'));
+
+    </script>
+</body>
+</html>

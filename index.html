@@ -1,0 +1,950 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Saikou OS</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=JetBrains+Mono:wght@400;700&family=Montserrat:wght@400;600;800&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --bg-color: #000000;
+            --taskbar-bg: rgba(10, 10, 10, 0.85);
+            --window-bg: #0a0a0a;
+            --window-header: #000000;
+            --border: #333333;
+            --accent: #3b82f6;
+            --text: #ffffff;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-color);
+            background-image: radial-gradient(circle at 50% 50%, #111 0%, #000 100%);
+            color: var(--text);
+            overflow: hidden;
+            user-select: none;
+            position: relative;
+        }
+
+        /* --- Desktop --- */
+        #desktop {
+            height: calc(100vh - 48px);
+            width: 100vw;
+            padding: 1rem;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, 96px);
+            grid-template-rows: repeat(auto-fill, 112px);
+            grid-auto-flow: column;
+            gap: 0.5rem;
+            align-content: start;
+            position: relative;
+            z-index: 1;
+        }
+
+        .app-icon {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            width: 96px;
+            height: 108px;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            text-align: center;
+            border: 1px solid transparent;
+        }
+
+        .app-icon:hover {
+            background-color: rgba(255, 255, 255, 0.05);
+            border-color: var(--border);
+        }
+
+        .app-icon:active {
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+
+        .icon-box {
+            width: 52px;
+            height: 52px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            margin-bottom: 8px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.6);
+            border: 1px solid rgba(255,255,255,0.1);
+            color: #fff;
+            transition: transform 0.1s;
+        }
+        
+        .app-icon:hover .icon-box {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(0,0,0,0.7);
+        }
+
+        .app-label {
+            font-size: 11px;
+            font-weight: 500;
+            color: #ccc;
+            text-shadow: 0 1px 3px rgba(0,0,0,0.9);
+            line-height: 1.2;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        /* --- Windows --- */
+        .window {
+            position: absolute;
+            top: 0; left: 0;
+            background-color: var(--window-bg);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.8);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            min-width: 300px;
+            min-height: 200px;
+            transition: transform 0.1s, opacity 0.15s;
+            z-index: 100; 
+        }
+
+        .window.active-window {
+            border-color: #555;
+            box-shadow: 0 25px 60px rgba(0,0,0,0.9);
+        }
+
+        .window.minimized {
+            transform: scale(0.9) translateY(100vh);
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .window.maximized {
+            top: 0 !important; left: 0 !important;
+            width: 100vw !important; height: calc(100vh - 48px) !important;
+            transform: none !important;
+            border-radius: 0;
+            border: none;
+        }
+
+        .window-header {
+            height: 34px;
+            background-color: var(--window-header);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 10px;
+            cursor: default;
+            user-select: none;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .window-title {
+            font-size: 12px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #9ca3af;
+            font-family: 'Inter', sans-serif;
+        }
+
+        .window-controls { display: flex; gap: 8px; }
+
+        .control-btn {
+            width: 10px; height: 10px;
+            border-radius: 50%; border: none;
+            cursor: pointer; transition: opacity 0.2s;
+            opacity: 0.7;
+        }
+        .control-btn:hover { opacity: 1; }
+        .btn-close { background-color: #ef4444; }
+        .btn-minimize { background-color: #eab308; }
+        .btn-maximize { background-color: #22c55e; }
+
+        .window-content {
+            flex: 1;
+            background-color: #000;
+            position: relative;
+        }
+
+        .window iframe {
+            width: 100%; height: 100%;
+            border: none; background-color: #000;
+        }
+
+        .iframe-blocker {
+            position: absolute; inset: 0;
+            display: none; z-index: 50;
+        }
+        .window.dragging .iframe-blocker, .window.resizing .iframe-blocker { display: block; }
+
+        /* Resize Handle */
+        .resize-handle {
+            position: absolute; bottom: 0; right: 0;
+            width: 15px; height: 15px;
+            cursor: se-resize;
+            z-index: 60;
+        }
+        .resize-handle::after {
+            content: ''; position: absolute;
+            bottom: 4px; right: 4px;
+            width: 6px; height: 6px;
+            border-right: 2px solid #444;
+            border-bottom: 2px solid #444;
+        }
+
+        /* --- Taskbar --- */
+        #taskbar {
+            position: fixed; bottom: 0; left: 0; right: 0;
+            height: 48px;
+            background-color: var(--taskbar-bg);
+            backdrop-filter: blur(12px);
+            border-top: 1px solid var(--border);
+            display: flex; align-items: center;
+            padding: 0 12px; z-index: 10000; gap: 12px;
+        }
+
+        #start-btn {
+            width: 32px; height: 32px;
+            background-color: #000;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer; transition: all 0.2s;
+        }
+        #start-btn:hover, #start-btn.active { background-color: #222; border-color: #666; }
+
+        .task-item {
+            height: 32px;
+            min-width: 120px; max-width: 180px;
+            padding: 0 12px;
+            background-color: transparent;
+            border: 1px solid transparent;
+            border-radius: 6px;
+            display: flex; align-items: center; gap: 8px;
+            cursor: pointer; transition: all 0.2s;
+        }
+
+        .task-item:hover { background-color: rgba(255,255,255,0.05); }
+        .task-item.active { 
+            background-color: #111; 
+            border-color: var(--border);
+        }
+        .task-item.active .task-title { color: white; }
+
+        .task-icon { font-size: 12px; }
+        .task-title { 
+            font-size: 11px; color: #888;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis; 
+        }
+
+        #clock-container {
+            margin-left: auto; text-align: right;
+            font-size: 11px; line-height: 1.2;
+            cursor: default; font-family: 'JetBrains Mono', monospace;
+            color: #888;
+        }
+
+        /* --- Start Menu --- */
+        #start-menu {
+            position: fixed; bottom: 56px; left: 12px;
+            width: 300px;
+            background-color: rgba(10, 10, 10, 0.95);
+            backdrop-filter: blur(15px);
+            border-radius: 6px;
+            border: 1px solid var(--border);
+            padding: 16px;
+            transform: translateY(20px);
+            opacity: 0; pointer-events: none;
+            transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+            z-index: 10001;
+            display: flex; flex-direction: column; gap: 16px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+        }
+
+        #start-menu.open { transform: translateY(0); opacity: 1; pointer-events: auto; }
+
+        .menu-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+
+        .menu-item {
+            display: flex; flex-direction: column; align-items: center;
+            gap: 6px; cursor: pointer; padding: 8px 4px;
+            border-radius: 6px; transition: background-color 0.1s;
+        }
+        .menu-item:hover { background-color: #222; }
+        .menu-item i { font-size: 18px; }
+        .menu-item span { font-size: 10px; text-align: center; color: #888; }
+
+        /* --- Boot Screen & Animations --- */
+        #boot-screen {
+            position: fixed; inset: 0;
+            background-color: #000; color: white;
+            z-index: 99999;
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            transition: opacity 0.8s ease-out;
+        }
+        
+        /* Animated OS Text */
+        .os-text-anim {
+            animation: os-glow 3s infinite alternate;
+        }
+        @keyframes os-glow {
+            0% { color: #3b82f6; text-shadow: 0 0 15px rgba(59, 130, 246, 0.4); } /* Blue */
+            50% { color: #8b5cf6; text-shadow: 0 0 15px rgba(139, 92, 246, 0.4); } /* Purple */
+            100% { color: #06b6d4; text-shadow: 0 0 15px rgba(6, 182, 212, 0.4); } /* Cyan */
+        }
+
+        /* Horizontal Loading Bar */
+        .loading-bar-container {
+            width: 220px;
+            height: 4px;
+            background-color: #1a1a1a;
+            border-radius: 2px;
+            overflow: hidden;
+            margin-top: 1.5rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        .loading-bar-fill {
+            height: 100%;
+            background-color: #fff;
+            width: 0%;
+            animation: fill-bar 2.5s ease-in-out forwards;
+        }
+        @keyframes fill-bar {
+            0% { width: 0%; }
+            15% { width: 10%; }
+            40% { width: 40%; }
+            70% { width: 60%; }
+            100% { width: 100%; }
+        }
+
+        /* --- Login Screen Transitions --- */
+        #login-screen {
+            position: fixed; inset: 0;
+            background-color: #000; color: white;
+            z-index: 99999;
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            /* Animation Base State */
+            opacity: 0;
+            transform: scale(0.95);
+            transition: opacity 0.8s ease, transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        
+        /* Class to trigger animation */
+        #login-screen.visible {
+            opacity: 1;
+            transform: scale(1);
+        }
+
+        /* Ensure hidden overrides layout */
+        #boot-screen.hidden, #login-screen.hidden {
+            display: none !important;
+            pointer-events: none;
+        }
+
+        /* Login UI */
+        .login-box {
+            width: 320px;
+            padding: 2rem;
+            background: #0a0a0a;
+            border: 1px solid #333;
+            border-radius: 8px;
+            text-align: center;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+        }
+        .login-input {
+            width: 100%;
+            background: #000;
+            border: 1px solid #333;
+            color: white;
+            padding: 10px;
+            border-radius: 6px;
+            margin-bottom: 1rem;
+            outline: none;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
+            transition: border-color 0.2s;
+        }
+        .login-input:focus { border-color: #555; }
+        
+        .login-btn {
+            width: 100%;
+            background: white;
+            color: black;
+            border: none;
+            padding: 10px;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 12px;
+            cursor: pointer;
+            margin-bottom: 0.5rem;
+            transition: opacity 0.2s;
+        }
+        .login-btn:hover { opacity: 0.9; }
+        
+        .guest-btn {
+            background: transparent;
+            color: #666;
+            font-size: 11px;
+            text-decoration: underline;
+            cursor: pointer;
+            transition: color 0.2s;
+        }
+        .guest-btn:hover { color: #999; }
+
+        /* Notifications */
+        #notification-area {
+            position: fixed; bottom: 60px; right: 12px;
+            display: flex; flex-direction: column; gap: 8px;
+            z-index: 10002; pointer-events: none;
+        }
+        .os-notification {
+            background: #0a0a0a;
+            border: 1px solid #333;
+            border-radius: 6px;
+            padding: 12px;
+            width: 280px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            transform: translateX(120%);
+            transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+            pointer-events: auto;
+        }
+        .os-notification.show { transform: translateX(0); }
+    </style>
+</head>
+<body>
+
+    <!-- Boot Screen -->
+    <div id="boot-screen">
+        <h1 class="text-4xl font-bold tracking-widest" style="font-family: 'Montserrat', sans-serif;">
+            Saikou<span class="os-text-anim">OS</span>
+        </h1>
+        <div class="loading-bar-container">
+            <div class="loading-bar-fill"></div>
+        </div>
+        <p class="text-gray-500 text-[10px] font-mono uppercase tracking-wider">Starting...</p>
+    </div>
+
+    <!-- Login Screen -->
+    <div id="login-screen" class="hidden">
+        <div class="login-box">
+            <div class="w-16 h-16 rounded-full bg-[#111] border border-[#333] mx-auto mb-4 flex items-center justify-center">
+                <i class="fas fa-user text-gray-500 text-2xl"></i>
+            </div>
+            <h2 class="text-white font-bold mb-1">System Access</h2>
+            <p class="text-gray-500 text-xs mb-6">Identify yourself.</p>
+            
+            <input type="password" id="login-passphrase" class="login-input" placeholder="SDIS Passphrase">
+            <button id="btn-login-sdis" class="login-btn">Authenticate</button>
+            <button id="btn-login-guest" class="guest-btn">Continue as Guest</button>
+        </div>
+    </div>
+
+    <!-- Desktop Area -->
+    <div id="desktop">
+        <!-- Icons injected by JS -->
+    </div>
+
+    <!-- Start Menu -->
+    <div id="start-menu">
+        <div class="pb-2 border-b border-[#222] mb-2 flex justify-between items-center">
+            <h3 class="font-bold text-white px-2 text-xs uppercase tracking-wider text-gray-500">Applications</h3>
+        </div>
+        <div class="menu-grid" id="start-menu-grid">
+            <!-- Icons injected by JS -->
+        </div>
+        <div class="pt-2 border-t border-[#222] mt-auto flex items-center gap-3 px-2">
+            <img id="menu-user-avatar" src="https://placehold.co/32x32/111/FFF?text=G" class="w-8 h-8 rounded bg-[#111] border border-[#333]">
+            <div class="flex-1">
+                <p id="menu-user-name" class="text-xs font-bold text-white">Guest User</p>
+                <p id="menu-user-role" class="text-[10px] text-gray-500 font-mono">Restricted Access</p>
+            </div>
+            <!-- Logout Button -->
+            <button onclick="logout()" class="text-gray-500 hover:text-red-400 transition-colors p-2" title="Logout">
+                <i class="fas fa-sign-out-alt"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- Taskbar -->
+    <div id="taskbar">
+        <div id="start-btn">
+            <i class="fas fa-border-all text-gray-400 text-sm"></i>
+        </div>
+        
+        <div id="task-container" class="flex gap-1 flex-1 overflow-x-auto no-scrollbar">
+            <!-- Active tasks injected here -->
+        </div>
+
+        <div id="clock-container">
+            <div id="clock-time" class="font-bold text-white">--:--</div>
+            <div id="clock-date">...</div>
+        </div>
+    </div>
+
+    <!-- Notification Area -->
+    <div id="notification-area"></div>
+
+    <script>
+        // --- Configuration ---
+        const AUTH_WORKER = 'https://sdis-authenticator.saikoudevelopment.workers.dev';
+
+        // Added color gradients back to the apps configuration
+        const ALL_APPS = [
+            { id: 'netvis', title: 'Network Visualizer', icon: 'fa-share-nodes', color: 'from-blue-600 to-cyan-500', restricted: false, url: 'netvis.html', width: 1000, height: 700 },
+            { id: 'lookup', title: 'Player Lookup', icon: 'fa-magnifying-glass', color: 'from-purple-600 to-pink-500', restricted: false, url: 'lookup.html', width: 900, height: 800 },
+            { id: 'panel', title: 'User Panel', icon: 'fa-users-gear', color: 'from-emerald-500 to-green-500', restricted: false, url: 'panel.html', width: 800, height: 600 },
+            { id: 'sdis', title: 'SDIS Admin', icon: 'fa-shield-halved', color: 'from-red-600 to-orange-600', restricted: true, url: 'sdis.html', width: 1100, height: 750 },
+            { id: 'rings', title: 'Ring Manager', icon: 'fa-link', color: 'from-rose-500 to-red-500', restricted: true, url: 'sdis-rings.html', width: 1000, height: 700 },
+            { id: 'timestamp', title: 'Time Gen', icon: 'fa-clock', color: 'from-yellow-500 to-orange-500', restricted: false, url: 'timestamp.html', width: 500, height: 600 },
+            { id: 'scheduler', title: 'Scheduler', icon: 'fa-calendar-days', color: 'from-indigo-500 to-blue-500', restricted: true, url: 'scheduler.html', width: 800, height: 700 },
+            { id: 'docusend', title: 'File Sender', icon: 'fa-paper-plane', color: 'from-gray-600 to-gray-800', restricted: true, url: 'docusend.html', width: 600, height: 500 }
+        ];
+
+        // --- State ---
+        let currentUser = null; 
+        let availableApps = [];
+        let activeWindows = {};
+        let minimizedWindows = new Set();
+        let zIndexCounter = 100;
+
+        // --- Boot & Login Flow ---
+        document.addEventListener('DOMContentLoaded', () => {
+            initClock();
+            
+            // Simulate Boot Sequence (2.5s to match loading bar)
+            setTimeout(() => {
+                const boot = document.getElementById('boot-screen');
+                boot.style.opacity = 0; // Fade out
+                setTimeout(() => { 
+                    boot.classList.add('hidden'); 
+                    showLoginScreen();
+                }, 800); // Wait for opacity transition
+            }, 2500);
+        });
+
+        function showLoginScreen() {
+            let screen = document.getElementById('login-screen');
+            if(!screen) return;
+
+            screen.classList.remove('hidden');
+            // Force reflow to enable transition
+            void screen.offsetWidth;
+            
+            // Trigger Animation
+            screen.classList.add('visible');
+            
+            // Event Listeners
+            document.getElementById('btn-login-guest').onclick = loginGuest;
+            document.getElementById('btn-login-sdis').onclick = loginSDIS;
+            document.getElementById('login-passphrase').addEventListener('keypress', (e) => {
+                if(e.key === 'Enter') loginSDIS();
+            });
+        }
+
+        function hideLoginScreen() {
+            const screen = document.getElementById('login-screen');
+            screen.classList.remove('visible'); // Reverse animation
+            setTimeout(() => screen.classList.add('hidden'), 800);
+            initializeDesktop();
+        }
+
+        function logout() {
+            // 1. Clear State
+            currentUser = null;
+            activeWindows = {};
+            minimizedWindows.clear();
+            localStorage.removeItem('sdis_user');
+            localStorage.removeItem('sdis_token');
+
+            // 2. Clear UI
+            document.getElementById('desktop').innerHTML = '';
+            document.getElementById('task-container').innerHTML = '';
+            document.querySelectorAll('.window').forEach(w => w.remove());
+            
+            // 3. Reset Menus
+            const startMenu = document.getElementById('start-menu');
+            const startBtn = document.getElementById('start-btn');
+            if(startMenu) startMenu.classList.remove('open');
+            if(startBtn) startBtn.classList.remove('active');
+
+            // 4. Show Login
+            showLoginScreen();
+            showNotification("System", "Logged out successfully.");
+        }
+
+        function loginGuest() {
+            currentUser = { username: "Guest", role: "Visitor", avatarUrl: "https://placehold.co/32x32/111/FFF?text=G" };
+            availableApps = ALL_APPS.filter(app => !app.restricted);
+            hideLoginScreen();
+            showNotification("System Access", "Logged in as Guest. Restricted apps hidden.");
+        }
+
+        async function loginSDIS() {
+            const pass = document.getElementById('login-passphrase').value.trim();
+            const btn = document.getElementById('btn-login-sdis');
+            if(!pass) return;
+
+            btn.innerText = "Authenticating...";
+            btn.disabled = true;
+
+            try {
+                const r = await fetch(`${AUTH_WORKER}/login`, {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ codePhrase: pass })
+                });
+                const d = await r.json();
+                
+                if(d.success) {
+                    currentUser = { 
+                        username: d.user.username, 
+                        role: d.user.sdisRole || "Operative",
+                        avatarUrl: d.user.avatarUrl || `https://placehold.co/32x32/111/FFF?text=${d.user.username[0]}`
+                    };
+                    availableApps = ALL_APPS; // All apps available
+                    
+                    localStorage.setItem('sdis_user', JSON.stringify(d.user));
+                    localStorage.setItem('sdis_token', d.token);
+                    
+                    hideLoginScreen();
+                    showNotification("System Access", `Welcome back, ${d.user.displayName || d.user.username}.`);
+                } else {
+                    alert("Access Denied: " + (d.error || "Invalid Credentials"));
+                    document.getElementById('login-passphrase').value = '';
+                }
+            } catch(e) {
+                alert("Connection Error: Unable to reach SDIS servers.");
+            } finally {
+                btn.innerText = "Authenticate";
+                btn.disabled = false;
+            }
+        }
+
+        // --- Desktop Logic ---
+        function initializeDesktop() {
+            updateStartMenuProfile();
+            renderDesktopIcons();
+            renderStartMenuApps();
+        }
+
+        // Global Click Listener added once
+        document.addEventListener('click', (e) => {
+            const startMenu = document.getElementById('start-menu');
+            const startBtn = document.getElementById('start-btn');
+            if (startMenu && !startMenu.contains(e.target) && !startBtn.contains(e.target)) {
+                startMenu.classList.remove('open');
+                startBtn.classList.remove('active');
+            }
+        });
+
+        // Start Btn listener added once
+        document.getElementById('start-btn').addEventListener('click', () => {
+            const menu = document.getElementById('start-menu');
+            const btn = document.getElementById('start-btn');
+            menu.classList.toggle('open');
+            btn.classList.toggle('active');
+        });
+
+        function updateStartMenuProfile() {
+            document.getElementById('menu-user-name').textContent = currentUser.username;
+            document.getElementById('menu-user-role').textContent = currentUser.role;
+            document.getElementById('menu-user-avatar').src = currentUser.avatarUrl;
+        }
+
+        function renderDesktopIcons() {
+            const desktop = document.getElementById('desktop');
+            desktop.innerHTML = availableApps.map(app => `
+                <div class="app-icon" onclick="window.openApp('${app.id}')">
+                    <div class="icon-box bg-gradient-to-br ${app.color}">
+                        <i class="fa-solid ${app.icon}"></i>
+                    </div>
+                    <span class="app-label">${app.title}</span>
+                </div>
+            `).join('');
+        }
+
+        function renderStartMenuApps() {
+            const grid = document.getElementById('start-menu-grid');
+            grid.innerHTML = availableApps.map(app => `
+                <div class="menu-item" onclick="window.openApp('${app.id}'); document.getElementById('start-menu').classList.remove('open'); document.getElementById('start-btn').classList.remove('active');">
+                    <div class="w-8 h-8 rounded bg-gradient-to-br ${app.color} flex items-center justify-center mb-1">
+                         <i class="fa-solid ${app.icon} text-white text-xs"></i>
+                    </div>
+                    <span>${app.title}</span>
+                </div>
+            `).join('');
+        }
+
+        // --- Window Management ---
+        
+        // Global API
+        window.openApp = function(appId) {
+            if (activeWindows[appId]) {
+                window.restoreWindow(appId);
+                return;
+            }
+            const app = availableApps.find(a => a.id === appId);
+            if (!app) return; // Security check
+            createWindow(app);
+        };
+
+        window.createWindow = function(app) {
+            const id = app.id;
+            const win = document.createElement('div');
+            win.className = 'window';
+            win.id = `win-${id}`;
+            
+            // Init Size
+            const width = Math.min(app.width, Math.floor(window.innerWidth * 0.9));
+            const height = Math.min(app.height, Math.floor(window.innerHeight * 0.8));
+            
+            win.style.width = `${width}px`;
+            win.style.height = `${height}px`;
+            
+            // Init Position
+            const offset = Object.keys(activeWindows).length * 25;
+            const left = Math.max(0, (window.innerWidth - width) / 2) + offset;
+            const top = Math.max(0, (window.innerHeight - height) / 2) + offset;
+            
+            win.style.transform = `translate(${left}px, ${top}px)`;
+            win.dataset.x = left;
+            win.dataset.y = top;
+            win.dataset.w = width;
+            win.dataset.h = height;
+
+            win.style.zIndex = ++zIndexCounter;
+
+            win.innerHTML = `
+                <div class="window-header" onmousedown="startDrag(event, '${id}')">
+                    <div class="window-title">
+                        <i class="fa-solid ${app.icon} text-gray-500"></i>
+                        <span>${app.title}</span>
+                    </div>
+                    <div class="window-controls">
+                        <button class="control-btn btn-minimize" onclick="minimizeWindow('${id}')"></button>
+                        <button class="control-btn btn-maximize" onclick="toggleMaximize('${id}')"></button>
+                        <button class="control-btn btn-close" onclick="closeWindow('${id}')"></button>
+                    </div>
+                </div>
+                <div class="window-content">
+                    <div class="iframe-blocker"></div>
+                    <iframe src="${app.url}" title="${app.title}"></iframe>
+                </div>
+                <div class="resize-handle" onmousedown="startResize(event, '${id}')"></div>
+            `;
+
+            win.addEventListener('mousedown', () => window.focusWindow(id));
+            document.body.appendChild(win);
+            activeWindows[id] = win;
+            createTaskbarItem(app);
+            window.focusWindow(id);
+        };
+
+        window.closeWindow = function(id) {
+            const win = document.getElementById(`win-${id}`);
+            if (win) {
+                win.style.opacity = 0;
+                win.style.transform = 'scale(0.95)';
+                setTimeout(() => win.remove(), 150);
+            }
+            delete activeWindows[id];
+            minimizedWindows.delete(id);
+            const task = document.getElementById(`task-${id}`);
+            if(task) task.remove();
+        };
+
+        window.minimizeWindow = function(id) {
+            const win = document.getElementById(`win-${id}`);
+            if (win) {
+                win.classList.add('minimized');
+                minimizedWindows.add(id);
+                updateTaskbarState(id, false);
+            }
+        };
+
+        window.restoreWindow = function(id) {
+            const win = document.getElementById(`win-${id}`);
+            if (win) {
+                win.classList.remove('minimized');
+                minimizedWindows.delete(id);
+                window.focusWindow(id);
+            }
+        };
+
+        window.toggleMaximize = function(id) {
+            const win = document.getElementById(`win-${id}`);
+            if(!win) return;
+            
+            if (win.classList.contains('maximized')) {
+                win.classList.remove('maximized');
+                win.style.transform = `translate(${win.dataset.x}px, ${win.dataset.y}px)`;
+                win.style.width = `${win.dataset.w}px`;
+                win.style.height = `${win.dataset.h}px`;
+            } else {
+                win.classList.add('maximized');
+                win.style.transform = 'translate(0px, 0px)';
+            }
+            window.focusWindow(id);
+        };
+
+        window.focusWindow = function(id) {
+            const win = document.getElementById(`win-${id}`);
+            if (win) {
+                win.style.zIndex = ++zIndexCounter;
+                win.classList.add('active-window');
+                Object.values(activeWindows).forEach(w => {
+                    if(w.id !== `win-${id}`) w.classList.remove('active-window');
+                });
+                
+                updateTaskbarState(id, true);
+                Object.keys(activeWindows).forEach(key => {
+                    if (key !== id) updateTaskbarState(key, false);
+                });
+            }
+        };
+
+        // --- Dragging Logic ---
+        let dragObj = null;
+
+        window.startDrag = function(e, id) {
+            if (e.target.closest('.window-controls')) return;
+            const win = document.getElementById(`win-${id}`);
+            if (win.classList.contains('maximized')) return;
+
+            const rect = win.getBoundingClientRect();
+            dragObj = {
+                el: win,
+                offX: e.clientX - rect.left,
+                offY: e.clientY - rect.top
+            };
+            win.classList.add('dragging');
+            window.focusWindow(id);
+        };
+
+        // --- Resizing Logic ---
+        let resizeObj = null;
+
+        window.startResize = function(e, id) {
+            e.stopPropagation(); 
+            const win = document.getElementById(`win-${id}`);
+            if (win.classList.contains('maximized')) return;
+
+            resizeObj = {
+                el: win,
+                startX: e.clientX,
+                startY: e.clientY,
+                startW: parseInt(win.style.width),
+                startH: parseInt(win.style.height)
+            };
+            win.classList.add('resizing');
+            window.focusWindow(id);
+        };
+
+        // Global Mouse Move/Up
+        window.addEventListener('mousemove', (e) => {
+            if (dragObj) {
+                e.preventDefault();
+                const x = e.clientX - dragObj.offX;
+                const y = e.clientY - dragObj.offY;
+                dragObj.el.style.transform = `translate(${x}px, ${y}px)`;
+                dragObj.el.dataset.x = x;
+                dragObj.el.dataset.y = y;
+            }
+            if (resizeObj) {
+                e.preventDefault();
+                const dx = e.clientX - resizeObj.startX;
+                const dy = e.clientY - resizeObj.startY;
+                
+                const newW = Math.max(300, resizeObj.startW + dx);
+                const newH = Math.max(200, resizeObj.startH + dy);
+                
+                resizeObj.el.style.width = `${newW}px`;
+                resizeObj.el.style.height = `${newH}px`;
+                resizeObj.el.dataset.w = newW;
+                resizeObj.el.dataset.h = newH;
+            }
+        });
+
+        window.addEventListener('mouseup', () => {
+            if (dragObj) {
+                dragObj.el.classList.remove('dragging');
+                dragObj = null;
+            }
+            if (resizeObj) {
+                resizeObj.el.classList.remove('resizing');
+                resizeObj = null;
+            }
+        });
+
+        // --- Taskbar & Utils ---
+        function createTaskbarItem(app) {
+            const container = document.getElementById('task-container');
+            const item = document.createElement('div');
+            item.className = 'task-item';
+            item.id = `task-${app.id}`;
+            item.onclick = () => {
+                if (minimizedWindows.has(app.id)) {
+                    window.restoreWindow(app.id);
+                } else if (activeWindows[app.id].style.zIndex == zIndexCounter) {
+                    window.minimizeWindow(app.id);
+                } else {
+                    window.focusWindow(app.id);
+                }
+            };
+            item.innerHTML = `<i class="fa-solid ${app.icon} task-icon text-gray-400"></i><span class="task-title">${app.title}</span>`;
+            container.appendChild(item);
+        }
+
+        function updateTaskbarState(id, isActive) {
+            const item = document.getElementById(`task-${id}`);
+            if (item) {
+                if (isActive) item.classList.add('active');
+                else item.classList.remove('active');
+            }
+        }
+
+        function showNotification(title, message) {
+            const area = document.getElementById('notification-area');
+            const notif = document.createElement('div');
+            notif.className = 'os-notification';
+            notif.innerHTML = `
+                <div class="flex items-center gap-2 mb-1">
+                    <i class="fas fa-bell text-blue-500 text-[10px]"></i>
+                    <span class="text-[10px] font-bold text-gray-500 uppercase">System</span>
+                </div>
+                <h4 class="font-bold text-xs text-white mb-1">${title}</h4>
+                <p class="text-[10px] text-gray-400 leading-relaxed">${message}</p>
+            `;
+            area.appendChild(notif);
+            
+            notif.offsetHeight; // trigger reflow
+            notif.classList.add('show');
+            
+            setTimeout(() => {
+                notif.classList.remove('show');
+                setTimeout(() => notif.remove(), 300);
+            }, 4000);
+        }
+
+        function initClock() {
+            setInterval(() => {
+                const now = new Date();
+                document.getElementById('clock-time').innerText = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                document.getElementById('clock-date').innerText = now.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
+            }, 1000);
+        }
+    </script>
+</body>
+</html>

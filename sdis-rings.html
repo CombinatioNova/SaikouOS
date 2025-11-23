@@ -1,0 +1,1155 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>Saikou | Ring Manager</title>
+    <meta name="description" content="A tool for SDIS to manage exploiter rings." />
+    <link rel="icon" type="image/png" href="https://saikou.dev/assets/images/favicon.png"
+        onerror="this.onerror=null;this.href='https://placehold.co/32x32/000000/FFFFFF?text=S'" />
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Fonts & Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet" />
+
+    <style>
+        :root {
+            --bg-main: #000000;
+            --panel-bg: #0a0a0a;
+            --border: #333333;
+            --text-main: #ffffff;
+            --text-muted: #888888;
+            --accent-red: #ef4444;
+            --accent-blue: #3b82f6;
+            --accent-green: #10b981;
+            --accent-yellow: #eab308;
+        }
+
+        body {
+            background-color: var(--bg-main);
+            color: var(--text-main);
+            font-family: 'Inter', sans-serif;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* --- UI Components --- */
+        .min-panel {
+            background-color: var(--panel-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            transition: border-color 0.2s;
+        }
+        .min-panel:hover {
+            border-color: #444;
+        }
+
+        .min-input, select, textarea {
+            background-color: #000 !important;
+            border: 1px solid var(--border) !important;
+            color: white !important;
+            border-radius: 6px !important;
+            padding: 8px 12px !important;
+            outline: none !important;
+            font-family: 'Inter', sans-serif;
+            font-size: 14px;
+            width: 100%;
+            transition: border-color 0.2s;
+        }
+        .min-input:focus, select:focus, textarea:focus {
+            border-color: #666 !important;
+            box-shadow: none !important;
+        }
+
+        .min-btn {
+            background: white;
+            color: black;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 13px;
+            border: none;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            transition: opacity 0.2s;
+            user-select: none;
+        }
+        .min-btn:hover:not(:disabled) { opacity: 0.9; }
+        .min-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .min-btn-outline {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: #ccc;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 13px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            transition: all 0.2s;
+            user-select: none;
+        }
+        .min-btn-outline:hover:not(:disabled) {
+            border-color: #666;
+            color: white;
+            background: #111;
+        }
+        .min-btn-outline:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .min-btn-danger {
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid rgba(239, 68, 68, 0.5);
+            color: #ef4444;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 13px;
+            transition: all 0.2s;
+            user-select: none;
+        }
+        .min-btn-danger:hover { background: rgba(239, 68, 68, 0.2); color: white; border-color: #ef4444; }
+
+        /* --- Modals (Fixed Ghost Element Issue) --- */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(4px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 50;
+            
+            /* Hidden State */
+            opacity: 0;
+            visibility: hidden; /* Crucial: removes element from hit-testing */
+            pointer-events: none;
+            
+            /* Delay visibility transition so opacity can fade out first */
+            transition: opacity 0.2s ease, visibility 0s linear 0.2s;
+        }
+        .modal-overlay.show {
+            /* Visible State */
+            opacity: 1;
+            visibility: visible;
+            pointer-events: auto;
+            
+            /* Remove delay when showing so it appears instantly */
+            transition-delay: 0s;
+        }
+        .modal-content {
+            background-color: #000;
+            border: 1px solid var(--border);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
+            transform: scale(0.98);
+            transition: transform 0.2s ease;
+        }
+        .modal-overlay.show .modal-content {
+            transform: scale(1);
+        }
+
+        /* --- Tabs --- */
+        .tab-btn {
+            padding: 0.5rem 1rem;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-muted);
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s ease;
+            cursor: pointer;
+            user-select: none;
+        }
+        .tab-btn:hover { color: white; }
+        .tab-btn.active {
+            color: white;
+            border-bottom-color: white;
+        }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        /* --- Utils --- */
+        .custom-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
+        .custom-scroll::-webkit-scrollbar-track { background: #111; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+        .custom-scroll::-webkit-scrollbar-thumb:hover { background: #555; }
+        
+        .role-tag {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 10px;
+            text-transform: uppercase;
+            padding: 2px 6px;
+            border-radius: 4px;
+            border: 1px solid;
+            cursor: pointer;
+            transition: opacity 0.2s;
+            user-select: none;
+        }
+        .role-tag:hover { opacity: 0.8; }
+
+        /* Animation for loading */
+        @keyframes pulse-border {
+            0% { border-color: #333; }
+            50% { border-color: #555; }
+            100% { border-color: #333; }
+        }
+        .loading-pulse { animation: pulse-border 1.5s infinite; }
+    </style>
+</head>
+
+<body class="min-h-screen pb-20">
+    <!-- Navbar -->
+    <nav class="sticky top-0 z-50 bg-black/90 border-b border-[#222] px-4 py-4 backdrop-blur-md">
+        <div class="max-w-7xl mx-auto flex justify-between items-center">
+            <a href="/" class="flex items-center gap-2">
+                <div class="w-2 h-2 bg-white rounded-full"></div>
+                <div class="font-bold text-lg tracking-tight text-white">Saikou Tools <span class="text-gray-600 font-normal">/ Ring Manager</span></div>
+            </a>
+            
+            <!-- Auth UI -->
+            <div id="auth-ui">
+                <!-- Logged Out -->
+                <div id="login-container">
+                    <button id="login-btn" class="min-btn-outline flex items-center gap-2 text-xs uppercase tracking-wider font-semibold">
+                        <i class="fas fa-lock text-[10px]"></i> <span>SDIS Access</span>
+                    </button>
+                </div>
+                <!-- Logged In -->
+                <div id="user-status-container" class="hidden flex items-center gap-3">
+                    <div class="text-right hidden sm:block">
+                        <div id="user-status-name" class="text-sm font-bold leading-none text-white"></div>
+                        <div id="user-status-role" class="text-[10px] text-gray-500 uppercase mt-1 font-mono"></div>
+                    </div>
+                    <img id="user-status-avatar" class="w-9 h-9 rounded bg-gray-900 border border-[#333] object-cover">
+                    <button id="logout-btn" class="text-gray-500 hover:text-white px-2 transition-colors cursor-pointer"><i class="fas fa-sign-out-alt"></i></button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="max-w-7xl mx-auto px-4 py-10">
+        <div class="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 gap-4">
+            <div>
+                <h1 class="text-3xl font-bold text-white tracking-tight mb-2">Exploiter Rings</h1>
+                <p class="text-gray-500 text-sm max-w-lg">Manage and track organized groups of bad actors. Changes here reflect in global lookup tools.</p>
+            </div>
+            <button id="create-ring-btn" class="min-btn" disabled>
+                <i class="fas fa-plus"></i> Create Ring
+            </button>
+        </div>
+
+        <!-- Rings Display -->
+        <div id="rings-container">
+            <!-- Loading State -->
+            <div id="loading-state" class="text-center p-12 min-panel">
+                <i class="fas fa-circle-notch fa-spin text-2xl text-gray-600 mb-4"></i>
+                <p class="text-gray-500 text-sm font-mono">ESTABLISHING CONNECTION...</p>
+            </div>
+
+            <!-- Empty State -->
+            <div id="empty-state" class="hidden text-center p-12 min-panel border-dashed">
+                <i class="fas fa-folder-open text-4xl text-gray-700 mb-4"></i>
+                <h2 class="text-lg font-bold text-white">No Rings Found</h2>
+                <p class="text-gray-500 text-sm mt-2">Initialize a new ring to begin tracking.</p>
+            </div>
+            
+            <!-- Rings Grid -->
+            <div id="rings-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <!-- Ring cards will be populated here -->
+            </div>
+        </div>
+    </main>
+
+    <!-- Modals -->
+
+    <!-- Login Modal -->
+    <div id="sdis-login-modal" class="modal-overlay">
+        <div class="modal-content w-full max-w-sm rounded-lg p-6">
+            <h3 class="text-lg font-bold mb-2 text-white">SDIS Authorization</h3>
+            <p class="text-xs text-gray-500 mb-4">Enter your secure passphrase to continue.</p>
+            <input type="password" id="sdis-code-phrase" class="min-input w-full mb-4" placeholder="Passphrase">
+            <div class="flex gap-2">
+                <button id="sdis-login-submit-btn" class="min-btn flex-1">Authenticate</button>
+                <button id="sdis-login-cancel-btn" class="min-btn-outline flex-1">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Ring Details/Edit Modal -->
+    <div id="ring-details-modal" class="modal-overlay">
+        <div class="modal-content w-full max-w-4xl rounded-lg flex flex-col max-h-[90vh] bg-black">
+            <!-- Modal Header -->
+            <div class="flex items-start justify-between p-6 border-b border-[#222] bg-[#050505]">
+                <div>
+                     <h2 id="modal-ring-name" class="text-xl font-bold text-white">Ring Details</h2>
+                     <p id="modal-ring-id" class="text-xs text-gray-500 font-mono mt-1"></p>
+                </div>
+                <button id="details-modal-close-btn" class="text-gray-500 hover:text-white transition-colors cursor-pointer"><i class="fas fa-times text-xl"></i></button>
+            </div>
+
+            <!-- Modal Body -->
+            <div class="flex-grow overflow-y-auto custom-scroll p-6 bg-black">
+                 <!-- Tabs -->
+                <div class="border-b border-[#222] mb-6">
+                    <nav id="modal-tabs" class="flex space-x-6">
+                        <button class="tab-btn active" data-tab="settings">Settings</button>
+                        <button class="tab-btn" data-tab="members">Members <span id="member-count-badge" class="ml-1 text-[10px] bg-[#222] px-1.5 py-0.5 rounded text-gray-400">0</span></button>
+                        <button class="tab-btn" data-tab="notes">Notes</button>
+                    </nav>
+                </div>
+
+                <!-- Tab Content -->
+                <div id="tab-content-container">
+                    <!-- Settings Tab -->
+                    <div id="tab-settings" class="tab-content active space-y-5">
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+                             <div class="md:col-span-2">
+                                <label for="modal-edit-name" class="block text-xs font-bold text-gray-500 uppercase mb-2">Ring Name</label>
+                                <input type="text" id="modal-edit-name" class="min-input" placeholder="Ring Name">
+                            </div>
+                            <div>
+                                <label for="modal-edit-status" class="block text-xs font-bold text-gray-500 uppercase mb-2">Status</label>
+                                <select id="modal-edit-status" class="min-input">
+                                    <option>Active</option>
+                                    <option>Unknown</option>
+                                    <option>Dormant</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div>
+                            <label for="modal-edit-description" class="block text-xs font-bold text-gray-500 uppercase mb-2">Description</label>
+                            <textarea id="modal-edit-description" rows="4" class="min-input resize-none" placeholder="Brief description of the ring..."></textarea>
+                        </div>
+                         <div class="flex justify-end pt-5 border-t border-[#222]">
+                             <button id="save-ring-changes-btn" class="min-btn"><i class="fas fa-save"></i> Save Changes</button>
+                         </div>
+                         
+                         <!-- Danger Zone -->
+                         <div class="mt-8 pt-6 border-t border-[#222]">
+                             <div class="flex justify-between items-center p-4 border border-red-900/30 rounded bg-red-900/5">
+                                 <div>
+                                     <p class="font-bold text-red-500 text-sm">Delete Ring</p>
+                                     <p class="text-xs text-gray-500">Permanently remove this ring and all associated data.</p>
+                                 </div>
+                                 <button id="delete-ring-btn" class="min-btn-danger">Delete</button>
+                             </div>
+                         </div>
+                    </div>
+
+                    <!-- Members Tab -->
+                    <div id="tab-members" class="tab-content space-y-4">
+                        <div class="flex gap-2">
+                            <input type="text" id="add-member-input" class="min-input" placeholder="Roblox Username or ID">
+                            <button id="add-member-btn" class="min-btn">Add</button>
+                        </div>
+                        
+                        <div class="min-panel p-0 overflow-hidden">
+                            <div class="bg-[#111] px-4 py-2 border-b border-[#222] flex justify-between items-center">
+                                <span class="text-xs font-bold text-gray-500 uppercase">Roster</span>
+                                <span class="text-xs text-gray-600 font-mono" id="member-count">0 Members</span>
+                            </div>
+                            <div id="members-list" class="max-h-[400px] overflow-y-auto custom-scroll divide-y divide-[#222]">
+                                <!-- Member items will be populated here -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Notes Tab -->
+                    <div id="tab-notes" class="tab-content space-y-4">
+                        <div class="space-y-2">
+                             <textarea id="add-note-textarea" rows="3" class="min-input resize-none" placeholder="Add a timestamped note..."></textarea>
+                            <div class="text-right">
+                                <button id="add-note-btn" class="min-btn">Add Note</button>
+                            </div>
+                        </div>
+                         <div>
+                            <div class="text-xs font-bold text-gray-500 uppercase mb-3 mt-6">Intelligence Log</div>
+                            <div id="notes-list" class="space-y-3 max-h-[400px] overflow-y-auto custom-scroll">
+                                <!-- Note items will be populated here -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Confirmation Modal -->
+    <div id="confirmation-modal" class="modal-overlay">
+        <div class="modal-content w-full max-w-sm rounded p-6 bg-black border border-[#333]">
+            <h3 class="text-lg font-bold mb-2 text-white">Confirm Action</h3>
+            <p id="confirmation-message" class="text-sm text-gray-400 mb-6">Are you sure?</p>
+            <div class="flex gap-2">
+                <button id="confirmation-confirm-btn" class="min-btn-danger flex-1">Confirm</button>
+                <button id="confirmation-cancel-btn" class="min-btn-outline flex-1">Cancel</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Edit Role Modal -->
+    <div id="edit-role-modal" class="modal-overlay">
+        <div class="modal-content w-full max-w-sm rounded p-6 bg-black border border-[#333]">
+            <h3 class="text-lg font-bold mb-4 text-white">Edit Member Role</h3>
+            <div id="edit-role-member-info" class="flex items-center gap-3 mb-4 p-3 bg-[#111] border border-[#222] rounded">
+                <!-- Member info will be populated here -->
+            </div>
+            <div id="role-options-container" class="space-y-1">
+                <!-- Role options will be populated here -->
+            </div>
+            <div class="flex gap-2 mt-6">
+                <button id="edit-role-save-btn" class="min-btn flex-1">Save Role</button>
+                <button id="edit-role-cancel-btn" class="min-btn-outline flex-1">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="fixed top-5 right-5 z-[60] px-4 py-3 rounded border border-[#333] shadow-xl text-white text-sm transition-transform duration-300 translate-x-full font-mono flex items-center gap-3">
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const AUTH_WORKER_URL = 'https://sdis-authenticator.saikoudevelopment.workers.dev';
+            const DATA_WORKER_URL = 'https://saikou-ban-proxy.saikoudevelopment.workers.dev';
+
+            // --- DOM Elements ---
+            const createRingBtn = document.getElementById('create-ring-btn');
+            const ringsContainer = document.getElementById('rings-container');
+            const loadingState = document.getElementById('loading-state');
+            const emptyState = document.getElementById('empty-state');
+            const ringsGrid = document.getElementById('rings-grid');
+            
+            // Details Modal Elements
+            const detailsModal = document.getElementById('ring-details-modal');
+            const detailsModalCloseBtn = document.getElementById('details-modal-close-btn');
+            const modalRingName = document.getElementById('modal-ring-name');
+            const modalRingId = document.getElementById('modal-ring-id');
+            const modalEditName = document.getElementById('modal-edit-name');
+            const modalEditStatus = document.getElementById('modal-edit-status');
+            const modalEditDescription = document.getElementById('modal-edit-description');
+            const saveRingChangesBtn = document.getElementById('save-ring-changes-btn');
+            const deleteRingBtn = document.getElementById('delete-ring-btn');
+            const addMemberInput = document.getElementById('add-member-input');
+            const addMemberBtn = document.getElementById('add-member-btn');
+            const memberCountSpan = document.getElementById('member-count');
+            const memberCountBadge = document.getElementById('member-count-badge');
+            const membersList = document.getElementById('members-list');
+            const addNoteTextarea = document.getElementById('add-note-textarea');
+            const addNoteBtn = document.getElementById('add-note-btn');
+            const notesList = document.getElementById('notes-list');
+
+            // Auth Elements
+            const loginContainer = document.getElementById('login-container');
+            const loginBtn = document.getElementById('login-btn');
+            const userStatusContainer = document.getElementById('user-status-container');
+            const userStatusName = document.getElementById('user-status-name');
+            const userStatusRole = document.getElementById('user-status-role');
+            const userStatusAvatar = document.getElementById('user-status-avatar');
+            const logoutBtn = document.getElementById('logout-btn');
+            const sdisLoginModal = document.getElementById('sdis-login-modal');
+            const sdisCodePhraseInput = document.getElementById('sdis-code-phrase');
+            const sdisLoginSubmitBtn = document.getElementById('sdis-login-submit-btn');
+            const sdisLoginCancelBtn = document.getElementById('sdis-login-cancel-btn');
+            
+            // Confirmation Modal Elements
+            const confirmationModal = document.getElementById('confirmation-modal');
+            const confirmationMessage = document.getElementById('confirmation-message');
+            const confirmationCancelBtn = document.getElementById('confirmation-cancel-btn');
+            const confirmationConfirmBtn = document.getElementById('confirmation-confirm-btn');
+            
+            // Edit Role Modal Elements
+            const editRoleModal = document.getElementById('edit-role-modal');
+            const editRoleMemberInfo = document.getElementById('edit-role-member-info');
+            const roleOptionsContainer = document.getElementById('role-options-container');
+            const editRoleCancelBtn = document.getElementById('edit-role-cancel-btn');
+            const editRoleSaveBtn = document.getElementById('edit-role-save-btn');
+
+
+            // --- State ---
+            let authToken = localStorage.getItem('sdis_token');
+            let currentUser = null;
+            let afterLoginCallback = null;
+            let currentEditingRingId = null;
+            let onConfirmCallback = null;
+            const avatarCache = {}; 
+            const VALID_MEMBER_ROLES = ['Member', 'Leader', 'Figurehead', 'Alt', 'Smurf', 'Associate'];
+            
+            // Using tailwind border colors for the role tags
+            const roleStyles = {
+                'Leader': 'border-red-600 text-red-500 bg-red-900/10',
+                'Figurehead': 'border-purple-600 text-purple-500 bg-purple-900/10',
+                'Alt': 'border-yellow-600 text-yellow-500 bg-yellow-900/10',
+                'Smurf': 'border-blue-600 text-blue-500 bg-blue-900/10',
+                'Associate': 'border-green-600 text-green-500 bg-green-900/10',
+                'Member': 'border-gray-600 text-gray-400 bg-gray-900/10'
+            };
+
+            // --- Helper: Escape HTML to prevent layout breakage ---
+            const escapeHtml = (unsafe) => {
+                if (typeof unsafe !== 'string') return unsafe;
+                return unsafe
+                     .replace(/&/g, "&amp;")
+                     .replace(/</g, "&lt;")
+                     .replace(/>/g, "&gt;")
+                     .replace(/"/g, "&quot;")
+                     .replace(/'/g, "&#039;");
+            };
+
+            // --- Auth Functions ---
+            const updateAuthUI = () => {
+                const isAuth = !!currentUser;
+                loginContainer.classList.toggle('hidden', isAuth);
+                userStatusContainer.classList.toggle('hidden', !isAuth);
+                createRingBtn.disabled = !isAuth;
+
+                if (isAuth) {
+                    userStatusName.textContent = currentUser.displayName || currentUser.username;
+                    userStatusAvatar.src = currentUser.avatarUrl || 'https://placehold.co/40x40/1f222c/FFFFFF?text=?';
+                    userStatusRole.textContent = currentUser.sdisRole || 'SDIS Operative';
+                }
+            };
+
+            const showLoginModal = (callback) => {
+                afterLoginCallback = callback;
+                sdisLoginModal.classList.add('show');
+                sdisCodePhraseInput.focus();
+            };
+
+            const checkAuth = () => {
+                authToken = localStorage.getItem('sdis_token');
+                const storedUser = localStorage.getItem('sdis_user');
+                if (authToken && storedUser) {
+                    try {
+                         currentUser = JSON.parse(storedUser);
+                    } catch (e) {
+                        handleLogout();
+                    }
+                } else {
+                    currentUser = null;
+                }
+                updateAuthUI();
+                if (currentUser) {
+                    loadRings();
+                } else {
+                    loadingState.innerHTML = `<i class="fas fa-lock text-3xl text-gray-700 mb-3"></i><p class="text-gray-500 font-mono text-xs">AUTHENTICATION REQUIRED</p>`;
+                }
+            };
+            
+            const handleLogin = async () => {
+                const codePhrase = sdisCodePhraseInput.value.trim();
+                if (!codePhrase) return;
+                sdisLoginSubmitBtn.disabled = true;
+                sdisLoginSubmitBtn.innerHTML = `<i class="fas fa-spinner fa-spin mr-2"></i>`;
+                try {
+                    const response = await fetch(`${AUTH_WORKER_URL}/login`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ codePhrase })
+                    });
+                    const result = await response.json();
+                    if (result.success && result.token && result.user) {
+                        authToken = result.token;
+                        currentUser = result.user;
+                        localStorage.setItem('sdis_token', authToken);
+                        localStorage.setItem('sdis_user', JSON.stringify(currentUser));
+                        updateAuthUI();
+                        sdisLoginModal.classList.remove('show');
+                        sdisCodePhraseInput.value = '';
+                        showToast('Access Granted', 'success');
+                        if (typeof afterLoginCallback === 'function') {
+                            afterLoginCallback();
+                        } else {
+                            loadRings();
+                        }
+                        afterLoginCallback = null;
+                    } else { throw new Error(result.error || 'Login failed'); }
+                } catch (error) { showToast(`Error: ${error.message}`, 'error');
+                } finally { sdisLoginSubmitBtn.disabled = false; sdisLoginSubmitBtn.textContent = 'Authenticate'; }
+            };
+
+            const handleLogout = () => {
+                authToken = null;
+                currentUser = null;
+                localStorage.removeItem('sdis_token');
+                localStorage.removeItem('sdis_user');
+                updateAuthUI();
+                ringsGrid.innerHTML = '';
+                emptyState.classList.add('hidden');
+                loadingState.innerHTML = `<i class="fas fa-lock text-3xl text-gray-700 mb-3"></i><p class="text-gray-500 font-mono text-xs">AUTHENTICATION REQUIRED</p>`;
+                showToast('Session Terminated', 'info');
+            };
+
+            // Event Listeners for Auth
+            loginBtn.addEventListener('click', () => showLoginModal());
+            logoutBtn.addEventListener('click', handleLogout);
+            sdisLoginCancelBtn.addEventListener('click', () => {
+                 sdisLoginModal.classList.remove('show');
+            });
+            sdisLoginSubmitBtn.addEventListener('click', handleLogin);
+            sdisCodePhraseInput.addEventListener('keydown', e => e.key === 'Enter' && handleLogin());
+
+            // --- Toast Notification ---
+            const showToast = (message, type = 'info') => {
+                const toast = document.getElementById('toast');
+                const colors = { success: 'bg-green-900/90 border-green-700 text-green-100', error: 'bg-red-900/90 border-red-700 text-red-100', info: 'bg-[#111] border-[#333] text-gray-200' };
+                const icons = { success: 'fa-check-circle text-green-400', error: 'fa-times-circle text-red-400', info: 'fa-info-circle text-blue-400' };
+                
+                toast.className = `fixed top-5 right-5 z-[60] px-4 py-3 rounded border shadow-xl text-sm transition-transform duration-300 translate-x-full font-mono flex items-center gap-3 backdrop-blur-md ${colors[type]}`;
+                toast.innerHTML = `<i class="fas ${icons[type]} text-lg"></i><span>${message}</span>`;
+                setTimeout(() => toast.style.transform = 'translateX(0)', 100);
+                setTimeout(() => {
+                    toast.style.transform = 'translateX(calc(100% + 1.25rem))';
+                }, 3000);
+            };
+
+            // --- API Functions ---
+            const apiRequest = async (endpoint, options = {}) => {
+                if (!authToken) {
+                    showLoginModal(() => apiRequest(endpoint, options));
+                    throw new Error('Authentication required');
+                }
+                const response = await fetch(`${AUTH_WORKER_URL}${endpoint}`, {
+                    ...options,
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${authToken}`,
+                        ...options.headers,
+                    },
+                });
+                if (response.status === 401) {
+                    handleLogout();
+                    throw new Error('Session expired. Please log in again.');
+                }
+                const data = await response.json();
+                 if (!response.ok) {
+                    throw new Error(data.error || `HTTP error! status: ${response.status}`);
+                }
+                return data;
+            };
+
+            const loadRings = async () => {
+                loadingState.classList.remove('hidden');
+                loadingState.innerHTML = `<i class="fas fa-circle-notch fa-spin text-2xl text-gray-600 mb-4"></i><p class="text-gray-500 text-sm font-mono">RETRIEVING DATA...</p>`;
+                emptyState.classList.add('hidden');
+                ringsGrid.innerHTML = '';
+                try {
+                    const data = await apiRequest('/rings');
+                    if (data.success && data.rings) {
+                        renderRings(data.rings);
+                    } else {
+                        throw new Error('Failed to load rings data.');
+                    }
+                } catch (error) {
+                    showToast(error.message, 'error');
+                    loadingState.innerHTML = `<p class="text-red-400 font-mono text-xs">CONNECTION FAILURE</p>`;
+                }
+            };
+            
+            const renderRings = (rings) => {
+                loadingState.classList.add('hidden');
+                if (rings.length === 0) {
+                    emptyState.classList.remove('hidden');
+                    return;
+                }
+                ringsGrid.innerHTML = rings.map(ring => {
+                    const statusColors = {
+                        Active: 'text-green-500 border-green-500/30 bg-green-500/10',
+                        Unknown: 'text-yellow-500 border-yellow-500/30 bg-yellow-500/10',
+                        Dormant: 'text-gray-500 border-gray-500/30 bg-gray-500/10',
+                    };
+                    const statusText = ring.status || 'Unknown';
+                    const statusClass = statusColors[statusText];
+
+                    return `
+                    <div class="min-panel p-5 flex flex-col justify-between hover:border-[#555] group h-full">
+                        <div>
+                            <div class="flex justify-between items-start mb-3">
+                                <h3 class="text-lg font-bold truncate pr-2 text-white">${escapeHtml(ring.name)}</h3>
+                                <span class="text-[10px] font-bold font-mono px-2 py-0.5 rounded border uppercase tracking-wider ${statusClass}">${statusText}</span>
+                            </div>
+                            <p class="text-sm text-gray-400 mb-4 line-clamp-2 h-10">${escapeHtml(ring.description) || 'No description provided.'}</p>
+                        </div>
+                        <div>
+                            <div class="flex justify-between items-center text-xs text-gray-500 mb-4 pt-4 border-t border-[#222]">
+                                <span class="font-mono"><i class="fas fa-users mr-1"></i> ${ring.members?.length || 0}</span>
+                                <span class="font-mono">${new Date(ring.createdAt).toLocaleDateString()}</span>
+                            </div>
+                            <button class="details-btn min-btn-outline w-full justify-center cursor-pointer relative z-10 select-none" data-ring-id="${ring.id}">
+                                Manage Ring
+                            </button>
+                        </div>
+                    </div>
+                    `;
+                }).join('');
+                // NOTE: Removed previous querySelectorAll event listener attachment
+                // to use Event Delegation on ringsGrid instead.
+            };
+            
+            // --- Avatar Fetching Function with Caching ---
+            const getMemberAvatars = async (memberIds) => {
+                if (!memberIds || memberIds.length === 0) return new Map();
+                const avatarMap = new Map();
+                const idsToFetch = [];
+
+                memberIds.forEach(id => {
+                    if (avatarCache[id]) avatarMap.set(id, avatarCache[id]);
+                    else idsToFetch.push(id);
+                });
+
+                if (idsToFetch.length > 0) {
+                    try {
+                        const robloxUrl = `https://thumbnails.roblox.com/v1/users/avatar-headshot?userIds=${idsToFetch.join(',')}&size=48x48&format=Png&isCircular=true`;
+                        const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(robloxUrl)}`;
+                        const response = await fetch(proxyUrl);
+                        if (response.ok) {
+                            const data = await response.json();
+                            data.data.forEach(avatar => {
+                                avatarMap.set(avatar.targetId, avatar.imageUrl);
+                                avatarCache[avatar.targetId] = avatar.imageUrl;
+                            });
+                        }
+                    } catch (error) { console.error("Avatar fetch error:", error); }
+                }
+                
+                memberIds.forEach(id => {
+                    if (!avatarMap.has(id)) {
+                        const placeholder = `https://placehold.co/48x48/1f222c/FFFFFF?text=?`;
+                        avatarMap.set(id, placeholder);
+                        avatarCache[id] = placeholder;
+                    }
+                });
+                return avatarMap;
+            };
+
+
+            // --- Modal Logic ---
+            const showConfirmationModal = (message, callback) => {
+                confirmationMessage.textContent = message;
+                onConfirmCallback = callback;
+                confirmationModal.classList.add('show');
+            };
+
+            const hideConfirmationModal = () => {
+                confirmationModal.classList.remove('show');
+                onConfirmCallback = null;
+            };
+            
+            confirmationCancelBtn.addEventListener('click', hideConfirmationModal);
+            confirmationConfirmBtn.addEventListener('click', () => {
+                if (typeof onConfirmCallback === 'function') {
+                    onConfirmCallback();
+                }
+                hideConfirmationModal();
+            });
+
+            const showDetailsModal = async (ringId) => {
+                currentEditingRingId = ringId;
+                detailsModal.classList.add('show');
+                
+                modalRingName.textContent = 'Loading Protocol...';
+                modalRingId.textContent = '';
+                document.getElementById('tab-content-container').style.opacity = '0.3';
+                document.getElementById('tab-content-container').style.pointerEvents = 'none';
+                
+                try {
+                    const data = await apiRequest(`/rings/${ringId}`);
+                    if (!data.success) throw new Error(data.error);
+                    const ring = data.ring;
+                    
+                    modalRingName.textContent = ring.name;
+                    modalRingId.textContent = `ID: ${ring.id}`;
+                    modalEditName.value = ring.name;
+                    modalEditStatus.value = ring.status || 'Unknown';
+                    modalEditDescription.value = ring.description || '';
+                    
+                    await renderMembers(ring.members);
+                    renderNotes(ring.notes);
+                    
+                    document.getElementById('tab-content-container').style.opacity = '1';
+                    document.getElementById('tab-content-container').style.pointerEvents = 'auto';
+
+                } catch (error) {
+                    showToast(error.message, 'error');
+                    closeDetailsModal();
+                }
+            };
+            
+            const closeDetailsModal = () => {
+                detailsModal.classList.remove('show');
+                currentEditingRingId = null;
+            };
+
+            const renderMembers = async (members) => {
+                memberCountSpan.textContent = members?.length ? `${members.length} Members` : '0 Members';
+                memberCountBadge.textContent = members?.length || 0;
+                
+                if (!members || members.length === 0) {
+                    membersList.innerHTML = `<div class="p-4 text-center text-xs text-gray-600 font-mono">No operatives found in roster.</div>`;
+                    return;
+                }
+                
+                // Skeleton loading
+                membersList.innerHTML = members.map(() => `
+                    <div class="flex items-center justify-between p-3 animate-pulse">
+                        <div class="flex items-center gap-3">
+                            <div class="w-8 h-8 rounded bg-[#222]"></div>
+                            <div class="space-y-1">
+                                <div class="h-3 w-24 bg-[#222] rounded"></div>
+                                <div class="h-2 w-16 bg-[#222] rounded"></div>
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+
+                const memberIds = members.map(m => m.userId);
+                const avatarMap = await getMemberAvatars(memberIds);
+
+                membersList.innerHTML = members.map(m => {
+                    const currentRole = m.role || 'Member';
+                    const roleClass = roleStyles[currentRole] || roleStyles['Member'];
+
+                    return `
+                    <div class="flex items-center justify-between p-3 hover:bg-[#111] transition-colors group">
+                        <div class="flex items-center gap-3 flex-grow">
+                             <img src="${avatarMap.get(m.userId)}" alt="${m.username}" class="w-8 h-8 rounded bg-black border border-[#333]">
+                            <div class="flex-grow">
+                                <a href="lookup.html?lookup=${m.userId}" target="_blank" class="text-sm font-bold text-gray-200 hover:text-white hover:underline">${m.username}</a>
+                                <p class="text-[10px] text-gray-600 font-mono">ID: ${m.userId}</p>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <div class="role-tag ${roleClass}" data-user-id="${m.userId}" data-username="${m.username}" data-role="${currentRole}" data-avatar="${avatarMap.get(m.userId)}">
+                                ${currentRole}
+                            </div>
+                            <button class="remove-member-btn text-gray-600 hover:text-red-500 w-6 h-6 flex items-center justify-center transition-colors cursor-pointer" data-user-id="${m.userId}">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                    </div>
+                    `;
+                }).join('');
+            };
+
+            const renderNotes = (notes) => {
+                 if (!notes || notes.length === 0) {
+                    notesList.innerHTML = `<div class="p-4 text-center text-xs text-gray-600 font-mono">No intelligence logs found.</div>`;
+                    return;
+                }
+                notesList.innerHTML = notes.map(note => `
+                <div class="bg-[#0a0a0a] border border-[#222] p-3 rounded group">
+                     <div class="flex justify-between items-start mb-2">
+                         <div class="text-[10px] text-gray-500 font-mono">
+                             <span class="text-blue-500 font-bold">${note.addedBy.username}</span> // ${new Date(note.timestamp).toLocaleDateString()}
+                         </div>
+                         <button class="delete-note-btn text-gray-700 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all cursor-pointer" data-note-id="${note.noteId}" title="Delete Log">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                     </div>
+                    <p class="text-xs text-gray-300 leading-relaxed">${escapeHtml(note.text)}</p>
+                </div>
+                `).join('');
+            };
+
+            const handleSaveChanges = async () => {
+                if(!currentEditingRingId) return;
+                const name = modalEditName.value;
+                const description = modalEditDescription.value;
+                const status = modalEditStatus.value;
+                
+                saveRingChangesBtn.disabled = true;
+                saveRingChangesBtn.innerHTML = `<i class="fas fa-spinner fa-spin mr-2"></i> Saving...`;
+
+                try {
+                    await apiRequest(`/rings/${currentEditingRingId}`, {
+                        method: 'PUT',
+                        body: JSON.stringify({ name, description, status })
+                    });
+
+                    showToast('Ring configuration updated', 'success');
+                    closeDetailsModal();
+                    loadRings();
+                } catch (error) {
+                    showToast(error.message, 'error');
+                } finally {
+                    saveRingChangesBtn.disabled = false;
+                    saveRingChangesBtn.innerHTML = `<i class="fas fa-save mr-2"></i> Save Changes`;
+                }
+            };
+            
+            const handleDeleteRing = async () => {
+                if (!currentEditingRingId) return;
+                showConfirmationModal('Permanently purge this ring data? This action is irreversible.', async () => {
+                    try {
+                        await apiRequest(`/rings/${currentEditingRingId}`, { method: 'DELETE' });
+                        showToast('Ring purged successfully', 'success');
+                        closeDetailsModal();
+                        loadRings();
+                    } catch(error) {
+                        showToast(error.message, 'error');
+                    }
+                });
+            };
+
+            const addMember = async () => {
+                const query = addMemberInput.value.trim();
+                if(!query || !currentEditingRingId) return;
+
+                addMemberBtn.disabled = true;
+                addMemberBtn.textContent = '...';
+                
+                try {
+                    // Try fetch from proxy first for ID resolution
+                    const userRes = await fetch(`${DATA_WORKER_URL}?lookup=${encodeURIComponent(query)}`);
+                    if(!userRes.ok) throw new Error("Target not found.");
+                    const userData = await userRes.json();
+                    if(!userData.success || !userData.profile) throw new Error("Roblox user resolution failed.");
+                    
+                    const member = { userId: userData.profile.id, username: userData.profile.name };
+
+                    const data = await apiRequest(`/rings/${currentEditingRingId}/members`, {
+                        method: 'POST',
+                        body: JSON.stringify({ members: [member] })
+                    });
+                    await renderMembers(data.updatedRing.members);
+                    showToast('Operative added to roster', 'success');
+                    addMemberInput.value = '';
+                } catch(error) {
+                     showToast(error.message, 'error');
+                } finally {
+                     addMemberBtn.disabled = false;
+                     addMemberBtn.textContent = 'Add';
+                }
+            };
+
+            const removeMember = async (userId) => {
+                 if(!userId || !currentEditingRingId) return;
+                 try {
+                     const data = await apiRequest(`/rings/${currentEditingRingId}/members`, {
+                         method: 'DELETE',
+                         body: JSON.stringify({ userIds: [parseInt(userId)] })
+                     });
+                     await renderMembers(data.updatedRing.members);
+                     showToast('Operative removed from roster', 'success');
+                 } catch(error) {
+                     showToast(error.message, 'error');
+                 }
+            };
+
+            const addNote = async () => {
+                const note = addNoteTextarea.value.trim();
+                if(!note || !currentEditingRingId) return;
+                addNoteBtn.disabled = true;
+                addNoteBtn.innerHTML = `Saving...`;
+                try {
+                    const data = await apiRequest(`/rings/${currentEditingRingId}/notes`, {
+                        method: 'POST',
+                        body: JSON.stringify({ note })
+                    });
+                    
+                    renderNotes(data.updatedRing.notes);
+                    showToast('Intelligence log updated', 'success');
+                    addNoteTextarea.value = '';
+                } catch(error) {
+                    showToast(error.message, 'error');
+                } finally {
+                    addNoteBtn.disabled = false;
+                    addNoteBtn.textContent = 'Add Note';
+                }
+            };
+
+            const handleDeleteNoteClick = (noteId) => {
+                showConfirmationModal('Expunge this intelligence log?', async () => {
+                    if (!noteId || !currentEditingRingId) return;
+                    try {
+                        const data = await apiRequest(`/rings/${currentEditingRingId}/notes/${noteId}`, {
+                            method: 'DELETE'
+                        });
+                        renderNotes(data.updatedRing.notes);
+                        showToast('Log expunged', 'success');
+                    } catch (error) {
+                        showToast(error.message, 'error');
+                    }
+                });
+            };
+            
+            const handleEditRoleClick = (target) => {
+                const userId = target.dataset.userId;
+                const username = target.dataset.username;
+                const currentRole = target.dataset.role;
+                const avatar = target.dataset.avatar;
+
+                editRoleMemberInfo.innerHTML = `
+                    <img src="${avatar}" alt="${username}" class="w-8 h-8 rounded bg-black border border-[#333]">
+                    <div>
+                        <p class="font-bold text-white text-sm">${username}</p>
+                        <p class="text-[10px] text-gray-500 font-mono">ID: ${userId}</p>
+                    </div>
+                `;
+
+                roleOptionsContainer.innerHTML = VALID_MEMBER_ROLES.map(role => `
+                    <label class="flex items-center gap-3 p-2 rounded cursor-pointer hover:bg-[#222]">
+                        <input type="radio" name="member-role" value="${role}" class="accent-white" ${role === currentRole ? 'checked' : ''}>
+                        <span class="text-xs font-bold text-gray-300">${role}</span>
+                    </label>
+                `).join('');
+                
+                editRoleSaveBtn.onclick = () => saveMemberRole(userId);
+
+                editRoleModal.classList.add('show');
+            };
+
+            const saveMemberRole = async (userId) => {
+                const selectedRole = roleOptionsContainer.querySelector('input[name="member-role"]:checked')?.value;
+                if (!selectedRole) return;
+
+                editRoleSaveBtn.disabled = true;
+                editRoleSaveBtn.innerHTML = `Saving...`;
+
+                try {
+                     const data = await apiRequest(`/rings/${currentEditingRingId}/members/${userId}`, {
+                        method: 'PUT',
+                        body: JSON.stringify({ role: selectedRole })
+                    });
+                    
+                    showToast('Role designation updated', 'success');
+                    await renderMembers(data.updatedRing.members);
+                    editRoleModal.classList.remove('show');
+
+                } catch (error) {
+                    showToast(error.message, 'error');
+                } finally {
+                    editRoleSaveBtn.disabled = false;
+                    editRoleSaveBtn.textContent = 'Save Role';
+                }
+            };
+            
+            editRoleCancelBtn.addEventListener('click', () => {
+                editRoleModal.classList.remove('show');
+            });
+
+
+            // --- EVENT LISTENERS ---
+
+            // Event Delegation for Ring Grid Buttons (Fixes "Not Working" Issue)
+            ringsGrid.addEventListener('click', (e) => {
+                const btn = e.target.closest('.details-btn');
+                if (btn) {
+                    showDetailsModal(btn.dataset.ringId);
+                }
+            });
+
+            // Modal Tabs
+            document.getElementById('modal-tabs').addEventListener('click', e => {
+                if (e.target.classList.contains('tab-btn') || e.target.parentElement.classList.contains('tab-btn')) {
+                    const btn = e.target.classList.contains('tab-btn') ? e.target : e.target.parentElement;
+                    const tabName = btn.dataset.tab;
+                    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+                    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                    btn.classList.add('active');
+                    document.getElementById(`tab-${tabName}`).classList.add('active');
+                }
+            });
+
+            // Note deletion
+            notesList.addEventListener('click', e => {
+                const deleteBtn = e.target.closest('.delete-note-btn');
+                if (deleteBtn) {
+                    handleDeleteNoteClick(deleteBtn.dataset.noteId);
+                }
+            });
+
+            // Member actions
+            membersList.addEventListener('click', e => {
+                const removeBtn = e.target.closest('.remove-member-btn');
+                if (removeBtn) {
+                     const userId = removeBtn.dataset.userId;
+                     showConfirmationModal('Remove this operative from the ring?', () => {
+                        removeMember(userId);
+                     });
+                     return;
+                }
+                
+                const roleTag = e.target.closest('.role-tag');
+                if (roleTag) {
+                    handleEditRoleClick(roleTag);
+                }
+            });
+            
+            detailsModalCloseBtn.addEventListener('click', closeDetailsModal);
+            saveRingChangesBtn.addEventListener('click', handleSaveChanges);
+            deleteRingBtn.addEventListener('click', handleDeleteRing);
+            addMemberBtn.addEventListener('click', addMember);
+            addNoteBtn.addEventListener('click', addNote);
+            
+            addMemberInput.addEventListener('keydown', e => e.key === 'Enter' && addMember());
+            
+            createRingBtn.addEventListener('click', () => {
+                currentEditingRingId = null;
+                modalRingName.textContent = 'Initialize New Ring';
+                modalRingId.textContent = 'New ID generation pending...';
+                modalEditName.value = '';
+                modalEditDescription.value = '';
+                modalEditStatus.value = 'Active';
+                
+                document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+                document.querySelector('.tab-btn[data-tab="settings"]').classList.add('active');
+                document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+                document.getElementById(`tab-settings`).classList.add('active');
+                document.getElementById('modal-tabs').style.display = 'none';
+
+                // Hide other elements
+                deleteRingBtn.parentElement.parentElement.classList.add('hidden');
+                saveRingChangesBtn.textContent = 'Initialize Ring';
+
+                detailsModal.classList.add('show');
+                
+                const createHandler = async () => {
+                    const name = modalEditName.value;
+                    const description = modalEditDescription.value;
+                    if(!name) {
+                        showToast('Ring Name is mandatory', 'error');
+                        return;
+                    }
+                    try {
+                        await apiRequest('/rings', {
+                            method: 'POST',
+                            body: JSON.stringify({ name, description, initialMembers: [] })
+                        });
+                        showToast('Ring initialized successfully', 'success');
+                        closeDetailsModal();
+                        loadRings();
+                    } catch(error) {
+                        showToast(error.message, 'error');
+                    }
+                };
+                
+                saveRingChangesBtn.onclick = createHandler;
+                
+                const observer = new MutationObserver(() => {
+                    if (!detailsModal.classList.contains('show')) {
+                        document.getElementById('modal-tabs').style.display = '';
+                        deleteRingBtn.parentElement.parentElement.classList.remove('hidden');
+                        saveRingChangesBtn.innerHTML = `<i class="fas fa-save"></i> Save Changes`;
+                        saveRingChangesBtn.onclick = handleSaveChanges;
+                        observer.disconnect();
+                    }
+                });
+                observer.observe(detailsModal, { attributes: true, attributeFilter: ['class']});
+            });
+
+
+            // Initial Load
+            checkAuth();
+        });
+    </script>
+</body>
+</html>

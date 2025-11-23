@@ -1,0 +1,1028 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>Saikou | Network Visualizer</title>
+    <meta name="description" content="Mod Intelligence Tool - Visualize connection graphs and threat vectors." />
+    <link rel="icon" type="image/png" href="https://saikou.dev/assets/images/favicon.png"
+        onerror="this.onerror=null;this.href='https://placehold.co/32x32/000000/FFFFFF?text=S'" />
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- D3.js -->
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+
+    <!-- Fonts & Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet" />
+
+    <style>
+        :root {
+            --bg-main: #000000;
+            --panel-bg: #0a0a0a;
+            --border: #333333;
+            --text-main: #ffffff;
+            --accent-red: #ef4444;
+            --accent-purple: #8b5cf6;
+            --accent-yellow: #eab308;
+            --accent-blue: #3b82f6;
+        }
+
+        body {
+            background-color: var(--bg-main);
+            color: var(--text-main);
+            font-family: 'Inter', sans-serif;
+            -webkit-font-smoothing: antialiased;
+            overflow: hidden;
+        }
+
+        /* --- UI Components --- */
+        .min-panel {
+            background-color: var(--panel-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            transition: border-color 0.2s;
+        }
+
+        .min-input {
+            background-color: #000;
+            border: 1px solid var(--border);
+            color: white;
+            border-radius: 6px;
+            padding: 8px 12px;
+            outline: none;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
+            transition: border-color 0.2s;
+            width: 100%;
+        }
+        .min-input:focus { border-color: #666; }
+
+        .min-btn {
+            background: white;
+            color: black;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 12px;
+            border: none;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            transition: opacity 0.2s;
+        }
+        .min-btn:hover { opacity: 0.9; }
+        .min-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .min-btn-outline {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: #ccc;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 12px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            transition: all 0.2s;
+        }
+        .min-btn-outline:hover {
+            border-color: #666;
+            color: white;
+            background: #111;
+        }
+
+        /* --- Graph Styling --- */
+        .graph-wrapper {
+            position: relative;
+            width: 100%;
+            height: calc(100vh - 60px);
+            background-color: #050505;
+            overflow: hidden;
+        }
+
+        #graph-svg { width: 100%; height: 100%; cursor: grab; }
+        #graph-svg:active { cursor: grabbing; }
+
+        /* Node Styles */
+        .node { cursor: pointer; transition: opacity 0.3s ease; }
+        
+        /* Default (Normal) Node Outline */
+        .node .node-outline {
+            stroke: #333; 
+            stroke-width: 1.5px; 
+            transition: all 0.2s;
+            pointer-events: all; /* Crucial for reliable clicks */
+        }
+        
+        /* Hover State */
+        .node:hover .node-outline { stroke: #fff; stroke-width: 2px; }
+        
+        /* Special Node Types */
+        .node.seed-user .node-outline { stroke: var(--accent-purple); stroke-width: 2px; }
+        
+        /* Banned Pop Animation */
+        @keyframes pulse-danger {
+            0% { stroke: #ef4444; stroke-width: 2px; filter: drop-shadow(0 0 0 rgba(239, 68, 68, 0)); }
+            50% { stroke: #ef4444; stroke-width: 3px; filter: drop-shadow(0 0 10px rgba(239, 68, 68, 0.6)); }
+            100% { stroke: #ef4444; stroke-width: 2px; filter: drop-shadow(0 0 0 rgba(239, 68, 68, 0)); }
+        }
+        .node.banned .node-outline { animation: pulse-danger 2s infinite; }
+
+        /* Links */
+        .link { stroke: #333; stroke-opacity: 0.6; stroke-width: 1.5px; }
+        .link.ring { stroke: #ef4444 !important; stroke-opacity: 0.8 !important; stroke-width: 2px; stroke-dasharray: 4, 4; }
+
+        /* --- Overlays --- */
+        .overlay-panel {
+            background: rgba(10, 10, 10, 0.95);
+            backdrop-filter: blur(8px);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+            pointer-events: auto;
+        }
+
+        /* Slide-in Panels */
+        #control-panel {
+            position: absolute; top: 20px; left: 20px; width: 300px;
+            transform: translateX(0); transition: transform 0.3s ease; z-index: 40;
+        }
+        #control-panel.collapsed { transform: translateX(-320px); }
+
+        #node-detail-card {
+            position: absolute; top: 20px; right: 20px; width: 320px;
+            transform: translateX(350px); transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+            z-index: 50; max-height: calc(100% - 40px); overflow-y: auto;
+            display: flex; flex-direction: column;
+        }
+        #node-detail-card.active { transform: translateX(0); }
+
+        /* Loading Scan Animation */
+        @keyframes scan-line {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
+        }
+        .scan-anim {
+            animation: scan-line 1.5s infinite linear;
+        }
+
+        /* Tags & Utils */
+        .user-tag {
+            background: #111; border: 1px solid #333; color: #ccc;
+            font-family: 'JetBrains Mono', monospace; font-size: 11px;
+            padding: 4px 8px; border-radius: 4px; display: inline-flex; align-items: center; gap: 6px;
+        }
+        .user-tag .remove-btn:hover { color: #fff; }
+        
+        .modal-backdrop {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.85);
+            backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center;
+            z-index: 100; opacity: 0; pointer-events: none; transition: opacity 0.2s;
+        }
+        .modal-backdrop.active { opacity: 1; pointer-events: auto; }
+        
+        .custom-scroll::-webkit-scrollbar { width: 6px; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+    </style>
+</head>
+
+<body>
+
+    <!-- Navbar -->
+    <nav class="sticky top-0 z-50 bg-black/90 border-b border-[#222] px-4 h-[60px] flex items-center justify-between backdrop-blur-md">
+        <a href="/" class="flex items-center gap-2">
+            <div class="w-2 h-2 bg-white rounded-full"></div>
+            <div class="font-bold text-lg tracking-tight text-white">Saikou Tools <span class="text-gray-600 font-normal">/ Netvis</span></div>
+        </a>
+        
+        <div id="auth-ui" class="flex items-center gap-3">
+            <button id="btn-login" class="min-btn-outline text-xs uppercase tracking-wider font-semibold">
+                <i class="fas fa-lock text-[10px]"></i> <span class="ml-2">SDIS Access</span>
+            </button>
+            <div id="user-display" class="hidden flex items-center gap-3">
+                <div class="text-right hidden sm:block">
+                    <div id="user-name" class="text-sm font-bold leading-none text-white"></div>
+                    <div id="user-role" class="text-[10px] text-gray-500 uppercase mt-1 font-mono"></div>
+                </div>
+                <img id="user-avatar" class="w-8 h-8 rounded bg-gray-900 border border-[#333]">
+                <button id="btn-logout" class="text-gray-500 hover:text-white px-2"><i class="fas fa-sign-out-alt"></i></button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Workspace -->
+    <div class="graph-wrapper">
+        <svg id="graph-svg"></svg>
+        
+        <!-- Global Loading Overlay -->
+        <div id="loading-overlay" class="absolute inset-0 bg-black/90 flex flex-col items-center justify-center z-50 hidden backdrop-blur-md">
+            <div class="text-white font-mono text-sm mb-2" id="loading-text">INITIALIZING...</div>
+            <div class="w-64 h-1 bg-gray-800 rounded overflow-hidden">
+                <div id="loading-bar" class="h-full bg-white transition-all duration-300" style="width: 0%"></div>
+            </div>
+        </div>
+
+        <!-- Left Control Panel -->
+        <div id="control-panel" class="overlay-panel flex flex-col gap-4">
+            <div>
+                <div class="flex justify-between items-center mb-2">
+                    <label class="text-[10px] font-bold text-gray-500 uppercase">Target Identification</label>
+                    <button id="toggle-controls" class="text-gray-500 hover:text-white"><i class="fas fa-minus"></i></button>
+                </div>
+                <div class="flex gap-2">
+                    <input type="text" id="user-input" class="min-input" placeholder="Username or ID...">
+                    <button id="add-user-btn" class="min-btn-outline"><i class="fas fa-plus"></i></button>
+                </div>
+            </div>
+
+            <div id="seed-tags" class="flex flex-wrap gap-2 min-h-[20px]"></div>
+
+            <div class="flex gap-2">
+                <button id="generate-btn" class="min-btn w-full flex-1" disabled>
+                    <i class="fas fa-project-diagram"></i> Generate
+                </button>
+                <button id="clear-btn" class="min-btn-outline text-red-500 border-red-900/30 hover:bg-red-900/10" title="Clear All">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </div>
+
+            <div class="h-px bg-[#222]"></div>
+
+            <div>
+                <label class="text-[10px] font-bold text-gray-500 uppercase mb-2 block">Node Filter</label>
+                <div class="flex items-center gap-2 bg-[#111] border border-[#333] rounded px-2 py-1.5">
+                    <i class="fas fa-search text-gray-500 text-xs"></i>
+                    <input type="text" id="node-search" class="bg-transparent border-none text-xs text-white w-full outline-none font-mono" placeholder="Find user...">
+                    <span id="search-count" class="text-[10px] text-gray-500 font-mono">0</span>
+                </div>
+            </div>
+
+            <div class="pt-2">
+                <div class="text-[10px] uppercase text-gray-500 font-bold mb-2">Graph Legend</div>
+                <div class="grid grid-cols-2 gap-y-2 gap-x-2">
+                    <div class="flex items-center gap-2 text-xs text-gray-300">
+                        <span class="w-2 h-2 rounded-full bg-[#0a0a0a] border border-[#8b5cf6] border-2"></span> Seed Target
+                    </div>
+                    <div class="flex items-center gap-2 text-xs text-gray-300">
+                        <span class="w-2 h-2 rounded-full bg-[#ef4444] shadow-[0_0_8px_#ef4444]"></span> Banned User
+                    </div>
+                    <div class="flex items-center gap-2 text-xs text-gray-300">
+                        <i class="fas fa-shield-alt text-red-500 w-3 text-center"></i> Unsafe
+                    </div>
+                    <div class="flex items-center gap-2 text-xs text-gray-300">
+                        <i class="fas fa-shield-alt text-yellow-500 w-3 text-center"></i> Flagged
+                    </div>
+                    <div class="flex items-center gap-2 text-xs text-gray-300">
+                        <i class="fas fa-exclamation-circle text-red-500 w-3 text-center"></i> POI
+                    </div>
+                    <div class="flex items-center gap-2 text-xs text-gray-300">
+                        <div class="w-6 h-px bg-gray-500"></div> Standard Link
+                    </div>
+                    <div class="flex items-center gap-2 text-xs text-gray-300 col-span-2">
+                        <div class="w-8 h-0 border-t-2 border-dashed border-[#ef4444]"></div> Ring Link
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Show Button -->
+        <button id="show-controls" class="absolute top-5 left-5 z-30 min-btn-outline bg-black hidden">
+            <i class="fas fa-bars"></i>
+        </button>
+
+        <!-- Physics Controls -->
+        <div class="absolute bottom-4 right-4 flex flex-col items-end gap-3 pointer-events-none">
+            <div class="overlay-panel w-48 pointer-events-auto">
+                <div class="text-[10px] uppercase text-gray-500 font-bold mb-2">Force Physics</div>
+                <div class="space-y-3">
+                    <div>
+                        <div class="flex justify-between text-[10px] text-gray-400 mb-1"><span>Charge</span> <span id="val-charge">-300</span></div>
+                        <input type="range" id="charge-slider" min="-1000" max="0" value="-300" class="w-full h-1 bg-gray-800 rounded-lg appearance-none cursor-pointer">
+                    </div>
+                    <div>
+                        <div class="flex justify-between text-[10px] text-gray-400 mb-1"><span>Distance</span> <span id="val-dist">80</span></div>
+                        <input type="range" id="dist-slider" min="10" max="300" value="80" class="w-full h-1 bg-gray-800 rounded-lg appearance-none cursor-pointer">
+                    </div>
+                </div>
+            </div>
+            <div class="flex gap-2 pointer-events-auto">
+                <button id="export-btn" class="min-btn-outline bg-black text-xs" title="Export Map"><i class="fas fa-download"></i></button>
+                <button onclick="document.getElementById('import-file').click()" class="min-btn-outline bg-black text-xs" title="Import Map"><i class="fas fa-upload"></i></button>
+                <input type="file" id="import-file" class="hidden" accept=".json">
+            </div>
+        </div>
+
+        <!-- Node Detail Card -->
+        <div id="node-detail-card" class="min-panel p-0 bg-black shadow-2xl border-l border-[#333]">
+            <!-- Card Loading Scanner -->
+            <div id="card-loader" class="h-0.5 w-full bg-[#111] relative overflow-hidden hidden">
+                <div class="h-full w-full bg-blue-500 scan-anim"></div>
+            </div>
+
+            <div class="p-4 border-b border-[#333] flex justify-between items-start bg-[#0a0a0a] relative">
+                <div class="flex items-center gap-3">
+                    <img id="card-avatar" class="w-10 h-10 rounded bg-black border border-[#333]" src="">
+                    <div>
+                        <div id="card-name" class="font-bold text-sm text-white leading-tight"></div>
+                        <div id="card-id" class="text-xs text-gray-500 font-mono"></div>
+                    </div>
+                </div>
+                <button onclick="closeCard()" class="text-gray-500 hover:text-white"><i class="fas fa-times"></i></button>
+            </div>
+            
+            <div class="p-4 flex-1 overflow-y-auto custom-scroll space-y-4">
+                <!-- POI Alert -->
+                <div id="poi-alert-block" class="hidden bg-red-900/20 border border-red-800 p-3 rounded flex items-start gap-3 mb-2">
+                    <i class="fas fa-exclamation-triangle text-red-500 mt-1"></i>
+                    <div>
+                        <div class="text-xs font-bold text-red-400 uppercase tracking-wide">Person of Interest</div>
+                        <div id="poi-reason-display" class="text-xs text-gray-300 mt-1">Loading details...</div>
+                    </div>
+                </div>
+
+                <!-- Rotector Info -->
+                <div id="rotector-block" class="hidden">
+                    <div class="flex justify-between items-end mb-2">
+                        <div class="text-[10px] uppercase text-gray-500 font-bold">Safety Analysis</div>
+                        <div id="rot-conf" class="text-[9px] font-mono text-gray-600"></div>
+                    </div>
+                    <div id="rotector-status" class="p-2 rounded border text-xs font-mono font-bold mb-2 text-center"></div>
+                    <div class="w-full bg-[#222] h-1 rounded-full overflow-hidden mb-2">
+                        <div id="rot-risk-bar" class="h-full transition-all duration-1000 bg-green-500" style="width: 0%"></div>
+                    </div>
+                    <div id="rotector-reasons" class="space-y-1"></div>
+                </div>
+
+                <!-- Stats -->
+                <div class="grid grid-cols-2 gap-2">
+                    <div class="bg-[#111] p-2 rounded border border-[#222] text-center">
+                        <div class="text-[10px] text-gray-500 uppercase">Friends</div>
+                        <div id="card-friends" class="text-sm font-bold text-white">...</div>
+                    </div>
+                    <div class="bg-[#111] p-2 rounded border border-[#222] text-center">
+                        <div class="text-[10px] text-gray-500 uppercase">Groups</div>
+                        <div id="card-groups" class="text-sm font-bold text-white">...</div>
+                    </div>
+                </div>
+                
+                <!-- Dates -->
+                <div class="text-xs text-gray-400 flex justify-between border-t border-[#222] pt-2">
+                    <span>Joined: <span id="card-joined" class="text-white font-mono">...</span></span>
+                    <span>Age: <span id="card-age" class="text-white font-mono">...</span></span>
+                </div>
+
+                <!-- Ban Info -->
+                <div id="ban-info-block" class="hidden bg-red-900/10 border border-red-900/30 p-2 rounded">
+                     <div class="text-[10px] text-red-400 font-bold uppercase mb-1">Ban Reason</div>
+                     <div id="ban-reason" class="text-xs text-red-200 break-words"></div>
+                </div>
+
+                <!-- Ring Data -->
+                <div id="card-rings" class="hidden">
+                    <div class="text-[10px] uppercase text-gray-500 font-bold mb-2 mt-2">Ring Affiliations</div>
+                    <div id="ring-list-card" class="space-y-1"></div>
+                </div>
+
+                <!-- Actions -->
+                <div class="space-y-2 pt-2 border-t border-[#333]">
+                    <button id="btn-add-net" class="min-btn w-full text-xs">
+                        <i class="fas fa-plus-circle"></i> Add To Network
+                    </button>
+                    <a id="btn-view-lookup" href="#" target="_blank" class="min-btn-outline w-full text-xs justify-center">
+                        <i class="fas fa-external-link-alt"></i> View Full Lookup
+                    </a>
+                    <div id="poi-actions" class="hidden pt-2 border-t border-[#333]">
+                        <button id="btn-mark-poi" class="min-btn-outline w-full text-xs justify-center text-red-400 hover:bg-red-900/20">
+                            <i class="fas fa-exclamation-triangle"></i> Mark as POI
+                        </button>
+                        <button id="btn-unmark-poi" class="min-btn-outline w-full text-xs justify-center text-green-400 hover:bg-green-900/20 hidden">
+                            <i class="fas fa-check"></i> Unmark POI
+                        </button>
+                    </div>
+                    <div id="ring-actions" class="hidden pt-2">
+                        <button id="btn-ring-assign" class="min-btn-outline w-full text-xs justify-center text-blue-400 hover:bg-blue-900/20">
+                            <i class="fas fa-link"></i> Manage Rings
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modals -->
+    <div id="modal-login" class="modal-backdrop">
+        <div class="min-panel p-6 w-full max-w-sm bg-black shadow-2xl">
+            <h3 class="text-lg font-bold mb-2 text-white">SDIS Authorization</h3>
+            <input type="password" id="login-code" class="min-input w-full mb-4" placeholder="Passphrase">
+            <div class="flex gap-2">
+                <button id="btn-login-submit" class="min-btn flex-1">Authenticate</button>
+                <button onclick="closeModals()" class="min-btn-outline flex-1">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="modal-poi" class="modal-backdrop">
+        <div class="min-panel p-6 w-full max-w-md bg-black shadow-2xl">
+            <h3 class="text-lg font-bold mb-1 text-red-500">Mark Subject</h3>
+            <textarea id="poi-reason" class="min-input w-full h-24 resize-none text-sm p-3 mb-4" placeholder="Reason..."></textarea>
+            <div class="flex gap-2">
+                <button id="btn-poi-confirm" class="min-btn bg-red-600 text-white border-none hover:bg-red-700 flex-1">Confirm</button>
+                <button onclick="closeModals()" class="min-btn-outline flex-1">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="modal-ring" class="modal-backdrop">
+        <div class="min-panel p-6 w-full max-w-sm bg-black shadow-2xl">
+            <h3 class="text-lg font-bold mb-1 text-blue-500">Ring Management</h3>
+            <div id="ring-modal-list" class="space-y-2 max-h-48 overflow-y-auto custom-scroll mb-4 mt-2"></div>
+            <div class="flex gap-2 border-t border-[#333] pt-3">
+                 <button onclick="closeModals()" class="min-btn-outline flex-1">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- Configuration ---
+        const API_WORKER = 'https://saikou-ban-proxy.saikoudevelopment.workers.dev';
+        const AUTH_WORKER = 'https://sdis-authenticator.saikoudevelopment.workers.dev';
+        const ROTECTOR_API = 'https://roscoe.robalyx.com/v1/lookup/roblox/user';
+        const MAX_SEEDS = 10;
+
+        // --- App State ---
+        let state = {
+            seeds: new Set(),
+            user: null,
+            token: null,
+            graphData: { nodes: [], links: [] },
+            rotectorData: new Map(),
+            rings: [],
+            selectedNode: null,
+            nodeCache: new Map()
+        };
+
+        let simulation = null;
+        const svg = d3.select("#graph-svg");
+        let width, height;
+
+        // --- Initialization ---
+        document.addEventListener('DOMContentLoaded', () => {
+            initAuth();
+            resizeGraph();
+            window.addEventListener('resize', resizeGraph);
+            setupEventHandlers();
+        });
+
+        function resizeGraph() {
+            const container = document.querySelector('.graph-wrapper');
+            width = container.clientWidth;
+            height = container.clientHeight;
+            svg.attr("width", width).attr("height", height);
+            if (simulation) {
+                simulation.force("center", d3.forceCenter(width / 2, height / 2));
+                simulation.alpha(0.3).restart();
+            }
+        }
+
+        function setupEventHandlers() {
+            document.getElementById('add-user-btn').onclick = addSeed;
+            document.getElementById('user-input').addEventListener('keydown', (e) => { if(e.key === 'Enter') addSeed(); });
+            
+            document.getElementById('generate-btn').onclick = generateGraph;
+            document.getElementById('clear-btn').onclick = () => {
+                state.seeds.clear(); renderSeeds(); svg.selectAll("*").remove(); closeCard();
+            };
+
+            document.getElementById('btn-login').onclick = () => openModal('modal-login');
+            document.getElementById('btn-login-submit').onclick = () => login(document.getElementById('login-code').value);
+            document.getElementById('btn-logout').onclick = () => {
+                state.user = null; state.token = null;
+                localStorage.removeItem('sdis_user'); localStorage.removeItem('sdis_token');
+                renderAuthUI();
+            };
+
+            document.getElementById('btn-mark-poi').onclick = () => openModal('modal-poi');
+            document.getElementById('btn-poi-confirm').onclick = submitPOI;
+            document.getElementById('btn-unmark-poi').onclick = unmarkPOI;
+
+            document.getElementById('export-btn').onclick = () => {
+                const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(state.graphData));
+                const dl = document.createElement('a'); dl.setAttribute("href", dataStr); dl.setAttribute("download", "netvis.json"); dl.click();
+            };
+            document.getElementById('import-file').onchange = (e) => {
+                const f = e.target.files[0]; if(!f) return;
+                const r = new FileReader(); r.onload = (ev) => { state.graphData = JSON.parse(ev.target.result); renderD3(state.graphData); };
+                r.readAsText(f);
+            };
+
+            const panel = document.getElementById('control-panel');
+            const showBtn = document.getElementById('show-controls');
+            document.getElementById('toggle-controls').onclick = () => { panel.classList.add('collapsed'); showBtn.classList.remove('hidden'); };
+            document.getElementById('show-controls').onclick = () => { panel.classList.remove('collapsed'); showBtn.classList.add('hidden'); };
+        }
+
+        // --- Graph Logic ---
+        function addSeed() {
+            const inp = document.getElementById('user-input');
+            const val = inp.value.trim();
+            if(!val || state.seeds.size >= MAX_SEEDS) return;
+            state.seeds.add(val); inp.value = ''; renderSeeds();
+        }
+
+        function renderSeeds() {
+            const c = document.getElementById('seed-tags'); c.innerHTML = '';
+            state.seeds.forEach(s => {
+                const d = document.createElement('div'); d.className = 'user-tag';
+                d.innerHTML = `<span class="w-2 h-2 rounded-full bg-blue-500"></span> ${s} <i class="fas fa-times remove-btn ml-1" onclick="removeSeed('${s}')"></i>`;
+                c.appendChild(d);
+            });
+            document.getElementById('generate-btn').disabled = state.seeds.size === 0;
+        }
+        window.removeSeed = (s) => { state.seeds.delete(s); renderSeeds(); };
+
+        async function generateGraph() {
+            if(state.seeds.size === 0) return;
+            const ov = document.getElementById('loading-overlay'); ov.classList.remove('hidden');
+            const bar = document.getElementById('loading-bar'); bar.style.width = '10%';
+            state.rotectorData.clear();
+
+            try {
+                const r = await fetch(`${API_WORKER}/graph`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ users: Array.from(state.seeds).join(',') })
+                });
+                const data = await r.json();
+                if(!data.success) throw new Error(data.error);
+
+                state.graphData = data;
+                state.graphData.nodes = state.graphData.nodes.filter(n => n.id > 0);
+                state.graphData.links = state.graphData.links.filter(l => l.source > 0 && l.target > 0);
+
+                injectRingLinks();
+
+                bar.style.width = '70%';
+                renderD3(state.graphData);
+
+                bar.style.width = '90%';
+                checkRotectorSafety(state.graphData.nodes);
+
+            } catch(e) { alert("Error: " + e.message); }
+            finally { bar.style.width = '100%'; setTimeout(() => { ov.classList.add('hidden'); bar.style.width='0%'; }, 500); }
+        }
+
+        function injectRingLinks() {
+            if (!state.user || state.rings.length === 0) return;
+
+            const newLinks = [];
+            const nodeMap = new Map(state.graphData.nodes.map(n => [String(n.id), n]));
+
+            state.rings.forEach(ring => {
+                if (!ring.members || ring.members.length < 2) return;
+                const visibleMembers = ring.members.map(m => String(m.userId)).filter(id => nodeMap.has(id));
+                
+                for (let i = 0; i < visibleMembers.length - 1; i++) {
+                    newLinks.push({ source: parseInt(visibleMembers[i]), target: parseInt(visibleMembers[i+1]), type: 'ring' });
+                }
+                if (visibleMembers.length > 2) {
+                    newLinks.push({ source: parseInt(visibleMembers[visibleMembers.length-1]), target: parseInt(visibleMembers[0]), type: 'ring' });
+                }
+            });
+            
+            state.graphData.links.push(...newLinks);
+        }
+
+        async function checkRotectorSafety(nodes) {
+            const uniqueIds = [...new Set(nodes.map(n => parseInt(n.id, 10)))]
+                .filter(id => !isNaN(id) && id > 0); 
+            
+            const BATCH = 100;
+            for (let i=0; i<uniqueIds.length; i+=BATCH) {
+                try {
+                    const batch = uniqueIds.slice(i, i+BATCH);
+                    if(batch.length === 0) continue;
+                    
+                    const r = await fetch(ROTECTOR_API, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ids: batch}) });
+                    
+                    if(r.ok) {
+                        const res = await r.json();
+                        if(res.success && res.data) {
+                            Object.values(res.data).forEach(u => {
+                                if (u.flagType > 0) state.rotectorData.set(String(u.id), u);
+                            });
+                        }
+                    }
+                    updateNodeBadges();
+                    await new Promise(r => setTimeout(r, 250));
+                } catch(e) { console.warn("Rotector Error:", e); }
+            }
+        }
+
+        function updateNodeBadges() {
+            svg.selectAll(".node").each(function(d) {
+                const node = d3.select(this);
+                const safety = state.rotectorData.get(String(d.id));
+                const isPOI = d.isPOI;
+                
+                node.selectAll(".badge-group").remove();
+                node.selectAll(".safety-ring-extra").remove();
+
+                const badges = [];
+
+                if (isPOI) {
+                    badges.push({ type: 'poi', color: '#ef4444', icon: '\uf12a' }); 
+                }
+
+                if (safety && safety.flagType > 0) {
+                    const color = safety.flagType === 2 ? "#ef4444" : "#eab308";
+                    const icon = "\uf3ed"; // Shield
+                    badges.push({ type: 'rot', color: color, icon: icon });
+                    
+                    node.insert("circle", "image").attr("class", "safety-ring-extra")
+                        .attr("r", 18).attr("fill", "none").attr("stroke", color).attr("stroke-width", 2).attr("stroke-dasharray", "3,2");
+                }
+
+                if (badges.length > 0) {
+                    const badgeGroup = node.append("g").attr("class", "badge-group");
+                    
+                    badges.forEach((badge, index) => {
+                        let bx = 12, by = -12;
+                        if (badges.length === 2) {
+                            bx = (index === 0) ? 8 : 18; 
+                            by = -14; 
+                        }
+
+                        const bg = badgeGroup.append("g").attr("transform", `translate(${bx}, ${by})`);
+                        bg.append("circle").attr("r", 8).attr("fill", badge.color).attr("stroke", "#0a0a0a").attr("stroke-width", 1.5);
+                        bg.append("text").attr("class", "fa").attr("text-anchor", "middle").attr("dominant-baseline", "central")
+                            .attr("fill", "white").attr("font-size", "9px").attr("font-weight", "bold").text(badge.icon);
+                    });
+                }
+            });
+        }
+
+        // --- D3 ---
+        function renderD3(data) {
+            svg.selectAll("*").remove();
+            const g = svg.append("g");
+            const zoom = d3.zoom().scaleExtent([0.1, 4]).on("zoom", (e) => g.attr("transform", e.transform));
+            svg.call(zoom);
+
+            simulation = d3.forceSimulation(data.nodes)
+                .force("link", d3.forceLink(data.links).id(d => d.id).distance(80))
+                .force("charge", d3.forceManyBody().strength(-300))
+                .force("center", d3.forceCenter(width/2, height/2))
+                .force("collide", d3.forceCollide().radius(25));
+
+            const link = g.append("g").selectAll("line").data(data.links).join("line")
+                .attr("class", d => d.type === 'ring' ? "link ring" : "link");
+
+            const nodeGroup = g.append("g").selectAll("g").data(data.nodes).join("g")
+                .attr("id", d => `node-${d.id}`)
+                .attr("class", d => `node ${d.isBanned ? 'banned' : ''} ${state.seeds.has(d.name) ? 'seed-user' : ''}`)
+                .call(d3.drag().on("start", dragStart).on("drag", dragging).on("end", dragEnd));
+                // REMOVED 'click' listener to prevent conflict with dragEnd. 
+                // Reliability is improved by handling click-like behavior inside dragEnd.
+
+            // 1. Background
+            nodeGroup.append("circle").attr("class", "node-background").attr("r", 15); 
+            
+            // 2. Image
+            nodeGroup.append("image").attr("href", d => d.avatarUrl || 'https://placehold.co/30x30/111/FFF?text=?')
+                .attr("x", -15).attr("y", -15).attr("width", 30).attr("height", 30)
+                .attr("clip-path", "circle(15px at 15px 15px)"); 
+            
+            // 3. Outline
+            nodeGroup.append("circle").attr("class", "node-outline")
+                .attr("r", 15).attr("fill", "transparent") 
+                .attr("stroke-width", 1.5); 
+
+            updateNodeBadges();
+
+            simulation.on("tick", () => {
+                link.attr("x1", d=>d.source.x).attr("y1", d=>d.source.y).attr("x2", d=>d.target.x).attr("y2", d=>d.target.y);
+                nodeGroup.attr("transform", d => `translate(${d.x},${d.y})`);
+            });
+
+            d3.select("#charge-slider").on("input", function() { 
+                simulation.force("charge").strength(+this.value); simulation.alpha(0.3).restart(); 
+                document.getElementById('val-charge').textContent = this.value;
+            });
+            d3.select("#dist-slider").on("input", function() { 
+                simulation.force("link").distance(+this.value); simulation.alpha(0.3).restart(); 
+                document.getElementById('val-dist').textContent = this.value;
+            });
+            
+            document.getElementById('node-search').addEventListener('input', (e) => {
+                const t = e.target.value.toLowerCase();
+                let c = 0;
+                nodeGroup.style('opacity', d => {
+                    const m = d.name.toLowerCase().includes(t) || String(d.id).includes(t);
+                    if(m) c++; return !t || m ? 1 : 0.1;
+                });
+                link.style('opacity', !t ? 0.6 : 0.05);
+                document.getElementById('search-count').innerText = c;
+            });
+        }
+
+        // Improved Drag Logic to differentiate click vs drag
+        function dragStart(event, d) {
+            if (!event.active) simulation.alphaTarget(0.3).restart();
+            d.fx = d.x;
+            d.fy = d.y;
+            d.dragStartX = event.x;
+            d.dragStartY = event.y;
+        }
+
+        function dragging(event, d) {
+            d.fx = event.x;
+            d.fy = event.y;
+        }
+
+        function dragEnd(event, d) {
+            if (!event.active) simulation.alphaTarget(0);
+            d.fx = null;
+            d.fy = null;
+            
+            // Calculate distance moved
+            const dx = event.x - d.dragStartX;
+            const dy = event.y - d.dragStartY;
+            const dist = Math.sqrt(dx*dx + dy*dy);
+            
+            // INCREASED THRESHOLD:
+            // If moved less than 6 pixels (was 3), treat as click.
+            // This prevents "micro-drags" from failing to register as clicks.
+            if (dist < 6) {
+                showCard(d);
+            }
+        }
+
+        // --- Card & Logic ---
+        async function showCard(d) {
+            state.selectedNode = d;
+            const card = document.getElementById('node-detail-card');
+            const loader = document.getElementById('card-loader');
+
+            // 1. Immediate UI Feedback
+            card.classList.add('active');
+            loader.classList.remove('hidden'); // Show scanning bar
+            
+            // 2. Set synchronous data (what we already know)
+            document.getElementById('card-name').textContent = d.displayName || d.name;
+            document.getElementById('card-id').textContent = `ID: ${d.id}`;
+            document.getElementById('card-avatar').src = d.avatarUrl || 'https://placehold.co/40x40/111/FFF?text=?';
+            document.getElementById('btn-view-lookup').href = `lookup.html?lookup=${d.id}`;
+            
+            // 3. Reset asynchronous fields to loading state
+            document.getElementById('card-friends').textContent = '...';
+            document.getElementById('card-groups').textContent = '...';
+            document.getElementById('card-joined').textContent = '...';
+            document.getElementById('card-age').textContent = '...';
+            document.getElementById('poi-alert-block').classList.add('hidden');
+            document.getElementById('rotector-block').classList.add('hidden');
+            document.getElementById('ban-info-block').classList.add('hidden');
+
+            // 4. Update Button State
+            const btnAdd = document.getElementById('btn-add-net');
+            const exists = state.seeds.has(d.name) || state.seeds.has(String(d.id));
+            btnAdd.textContent = exists ? "Already In Network" : "Add To Network";
+            btnAdd.disabled = exists;
+            btnAdd.onclick = () => { if(!exists) { state.seeds.add(d.name); renderSeeds(); btnAdd.textContent="Already In Network"; btnAdd.disabled=true; } };
+
+            // 5. Fetch Async Data (Deep Profile)
+            let full = d;
+            try {
+                if (!state.nodeCache.has(d.id)) {
+                    const r = await fetch(`${API_WORKER}?lookup=${d.id}`);
+                    const res = await r.json();
+                    if(res.success) {
+                        state.nodeCache.set(d.id, res.profile);
+                        full = res.profile;
+                    }
+                } else full = state.nodeCache.get(d.id);
+                
+                // Only update if user hasn't clicked another node while fetching
+                if(state.selectedNode && state.selectedNode.id === d.id) {
+                    updateCardStats(full);
+                    checkExtras(d);
+                }
+            } catch(e) { console.warn("Deep fetch error", e); }
+            finally {
+                // Hide loader only if we are still on the same node
+                if(state.selectedNode && state.selectedNode.id === d.id) {
+                    setTimeout(() => loader.classList.add('hidden'), 300); // Small delay for smoothness
+                }
+            }
+
+            // Auth specific checks (local info, doesn't need fetch)
+            const poiDiv = document.getElementById('poi-actions');
+            const ringDiv = document.getElementById('ring-actions');
+            
+            if(state.user) {
+                poiDiv.classList.remove('hidden');
+                ringDiv.classList.remove('hidden');
+                document.getElementById('btn-mark-poi').classList.toggle('hidden', d.isPOI);
+                document.getElementById('btn-unmark-poi').classList.toggle('hidden', !d.isPOI);
+                updateRingCard(d.id);
+            } else {
+                poiDiv.classList.add('hidden');
+                ringDiv.classList.add('hidden');
+                document.getElementById('card-rings').classList.add('hidden');
+            }
+        }
+
+        async function checkExtras(d) {
+            // POI Check
+            if (d.isPOI) {
+                document.getElementById('poi-alert-block').classList.remove('hidden');
+                const poiReason = document.getElementById('poi-reason-display');
+                poiReason.textContent = "Loading details...";
+                try {
+                    const r = await fetch(`${DATA_WORKER_URL}/poi/${d.id}`, {headers:{'Authorization':`Bearer ${state.token}`}});
+                    const res = await r.json();
+                    if(state.selectedNode && state.selectedNode.id === d.id && res.success && res.data) {
+                        poiReason.textContent = res.data.reason;
+                    }
+                } catch(e){ /* ignore */ }
+            }
+
+            // Ban Info
+            if(d.isBanned && d.banReason) {
+                document.getElementById('ban-info-block').classList.remove('hidden');
+                document.getElementById('ban-reason').textContent = d.banReason;
+            }
+
+            // Rotector
+            renderRotectorInfo(d.id);
+        }
+
+        function updateCardStats(data) {
+            document.getElementById('card-friends').textContent = data.friendCount ?? '...';
+            document.getElementById('card-groups').textContent = data.groupCount ?? '...';
+            if(data.created) {
+                const date = new Date(data.created);
+                document.getElementById('card-joined').textContent = date.toLocaleDateString();
+                document.getElementById('card-age').textContent = Math.floor((new Date() - date)/(86400000)) + ' days';
+            }
+        }
+
+        function renderRotectorInfo(uid) {
+            const s = state.rotectorData.get(String(uid));
+            const rBlock = document.getElementById('rotector-block');
+            
+            if(s && s.flagType > 0) { 
+                rBlock.classList.remove('hidden');
+                const isUnsafe = s.flagType === 2;
+                const conf = (typeof s.confidence === 'number') ? (s.confidence*100).toFixed(0) : '--';
+                
+                document.getElementById('rot-conf').textContent = `CONF: ${conf}%`;
+                
+                const st = document.getElementById('rotector-status');
+                st.className = `p-2 rounded border text-xs font-mono font-bold mb-2 text-center ${isUnsafe?'bg-red-900/20 border-red-800 text-red-500':'bg-yellow-900/20 border-yellow-800 text-yellow-500'}`;
+                st.innerHTML = isUnsafe ? `<i class="fas fa-shield-alt mr-2"></i>THREAT DETECTED` : `<i class="fas fa-exclamation-triangle mr-2"></i>FLAGGED`;
+                
+                const bar = document.getElementById('rot-risk-bar');
+                bar.className = `h-full transition-all duration-1000 ${isUnsafe?'bg-red-600':'bg-yellow-500'}`;
+                bar.style.width = isUnsafe ? '100%' : '50%';
+
+                const reas = document.getElementById('rotector-reasons'); reas.innerHTML = '';
+                if(s.reasons) Object.entries(s.reasons).forEach(([k,v]) => {
+                    reas.innerHTML += `<div class="bg-[#111] p-2 rounded border border-[#222] text-[10px] text-gray-400"><span class="text-white font-bold block mb-1">${k}</span>${v.message}</div>`;
+                });
+            }
+        }
+
+        function closeCard() { 
+            document.getElementById('node-detail-card').classList.remove('active'); 
+            state.selectedNode = null; // Clear selection
+        }
+
+        // --- Auth & Rings ---
+        function initAuth() {
+            const u = localStorage.getItem('sdis_user'), t = localStorage.getItem('sdis_token');
+            if(u && t) { state.user = JSON.parse(u); state.token = t; }
+            renderAuthUI();
+        }
+        function renderAuthUI() {
+            const is = !!state.user;
+            document.getElementById('btn-login').classList.toggle('hidden', is);
+            document.getElementById('user-display').classList.toggle('hidden', !is);
+            if(is) {
+                document.getElementById('user-name').textContent = state.user.displayName || state.user.username;
+                document.getElementById('user-role').textContent = state.user.sdisRole || "Operative";
+                document.getElementById('user-avatar').src = state.user.avatarUrl || `https://placehold.co/32x32/333/FFF?text=${state.user.username[0]}`;
+                fetchRings();
+            }
+        }
+        async function login(c) {
+            try {
+                const r = await fetch(`${AUTH_WORKER}/login`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({codePhrase:c})});
+                const d = await r.json();
+                if(d.success) {
+                    state.user = d.user; state.token = d.token;
+                    localStorage.setItem('sdis_user', JSON.stringify(d.user)); localStorage.setItem('sdis_token', d.token);
+                    closeModals(); renderAuthUI();
+                } else alert(d.error);
+            } catch(e){alert("Connection Error");}
+        }
+
+        async function fetchRings() {
+            if(!state.user) return;
+            try {
+                const r = await fetch(`${AUTH_WORKER}/rings`, {headers:{'Authorization':`Bearer ${state.token}`}});
+                const d = await r.json();
+                state.rings = d.rings || [];
+            } catch(e){console.error(e);}
+        }
+
+        function updateRingCard(uid) {
+            const c = document.getElementById('card-rings');
+            const l = document.getElementById('ring-list-card');
+            
+            const userRings = state.rings.filter(r => r.members && r.members.some(m => String(m.userId) === String(uid)));
+            
+            if(userRings.length > 0) {
+                c.classList.remove('hidden');
+                l.innerHTML = userRings.map(r => {
+                    const member = r.members.find(m => String(m.userId) === String(uid));
+                    const role = member ? (member.role || 'Member') : 'Member';
+                    
+                    let roleStyle = 'bg-gray-800 text-gray-300 border-gray-600';
+                    let roleText = 'MEMBER';
+                    if (role.toLowerCase() === 'leader') { roleStyle = 'bg-red-900 text-red-200 border-red-700'; roleText = 'LEADER'; }
+                    else if (role.toLowerCase() === 'figurehead') { roleStyle = 'bg-purple-900 text-purple-200 border-purple-700'; roleText = 'FIGUREHEAD'; }
+                    else if (role.toLowerCase() === 'alt') { roleStyle = 'bg-yellow-900 text-yellow-200 border-yellow-700'; roleText = 'ALT'; }
+
+                    return `
+                        <div class="bg-[#111] border border-[#333] p-2 rounded flex justify-between items-center">
+                            <span class="text-xs text-red-400 font-bold">${r.name}</span>
+                            <span class="text-[9px] border ${roleStyle} px-2 py-0.5 rounded font-mono uppercase tracking-wider">${roleText}</span>
+                        </div>
+                    `;
+                }).join('');
+            } else c.classList.add('hidden');
+
+            document.getElementById('btn-ring-assign').onclick = () => {
+                const l = document.getElementById('ring-modal-list');
+                l.innerHTML = state.rings.map(r => {
+                    const isMem = r.members && r.members.some(m => String(m.userId) === String(uid));
+                    return `
+                        <div class="flex items-center justify-between p-2 border border-[#333] rounded bg-[#111] mb-1">
+                            <span class="text-xs text-white">${r.name}</span>
+                            <button onclick="toggleRing('${r.id}', '${uid}', ${isMem})" class="text-[10px] px-2 py-1 rounded border ${isMem ? 'border-red-500 text-red-500' : 'border-green-500 text-green-500'}">${isMem?'REMOVE':'ADD'}</button>
+                        </div>`;
+                }).join('');
+                openModal('modal-ring');
+            };
+        }
+
+        async function toggleRing(rid, uid, isRem) {
+            try {
+                const method = isRem ? 'DELETE' : 'POST';
+                const body = isRem ? { userIds:[uid] } : { members:[{userId:uid, username:state.selectedNode.name}] };
+                await fetch(`${AUTH_WORKER}/rings/${rid}/members`, { method, headers:{'Content-Type':'application/json','Authorization':`Bearer ${state.token}`}, body:JSON.stringify(body)});
+                await fetchRings(); updateRingCard(uid); document.getElementById('btn-ring-assign').click();
+            } catch(e){alert("Failed");}
+        }
+
+        // --- POI ---
+        const DATA_WORKER_URL = 'https://saikou-ban-proxy.saikoudevelopment.workers.dev'; // Global constant for worker
+
+        async function submitPOI() {
+            const r = document.getElementById('poi-reason').value;
+            if(!r) return;
+            try {
+                const n = state.selectedNode;
+                await fetch(`${DATA_WORKER_URL}/poi`, {
+                    method:'POST', headers:{'Content-Type':'application/json', 'Authorization':`Bearer ${state.token}`},
+                    body: JSON.stringify({ userId: n.id, username: n.name, displayName: n.displayName, reason: r, markedBy: state.user.username, timestamp: new Date(), avatarUrl: n.avatarUrl })
+                });
+                n.isPOI = true; 
+                updateNodeBadges(); // Update graph visuals immediately
+                showCard(n); 
+                closeModals();
+            } catch(e){alert("Failed: " + e.message);}
+        }
+        async function unmarkPOI() {
+            if(!confirm("Revoke status?")) return;
+            try { await fetch(`${DATA_WORKER_URL}/poi/${state.selectedNode.id}`, {method:'DELETE', headers:{'Authorization':`Bearer ${state.token}`}}); 
+            state.selectedNode.isPOI = false; 
+            updateNodeBadges(); // Update graph visuals immediately
+            showCard(state.selectedNode); } catch(e){alert("Failed");}
+        }
+
+        // --- Utils ---
+        function openModal(id) { document.getElementById(id).classList.add('active'); }
+        function closeModals() { document.querySelectorAll('.modal-backdrop').forEach(m => m.classList.remove('active')); }
+    </script>
+</body>
+</html>
