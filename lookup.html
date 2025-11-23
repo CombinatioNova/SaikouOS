@@ -8,7 +8,8 @@
     <meta name="description" content="Mod Intelligence Tool - Roblox user information and threat assessment." />
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet" />
+    <!-- Added Montserrat -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=JetBrains+Mono:wght@400;700&family=Montserrat:wght@700;800&display=swap" rel="stylesheet" />
 
     <style>
         :root {
@@ -237,6 +238,7 @@
 
         const LOCAL_THREAT_IDS = ["1"]; // Example
         const SAIKOU_GROUP_ID = "3149674"; // Saikou Group
+        const SDIS_GROUP_ID = "549702194"; // SDIS Group
 
         let app = { 
             user: null, 
@@ -598,6 +600,12 @@
                 if (saikouData) {
                     log(`SAIKOU AFFILIATION CONFIRMED: ${saikouData.role}`, 'success');
                 }
+                
+                // --- SDIS CHECK (Instant) ---
+                const sdisData = app.groups.find(g => String(g.id) === SDIS_GROUP_ID);
+                if (sdisData) {
+                    log(`SDIS AGENT IDENTIFIED: ${sdisData.role}`, 'success');
+                }
 
                 await new Promise(r => setTimeout(r, 500));
 
@@ -713,13 +721,18 @@
                                  <i class="fas ${style.icon} ${style.text} text-lg relative z-10"></i>
                             </div>
                             <div>
-                                <div class="text-[9px] uppercase font-bold text-gray-500 tracking-[0.2em] mb-0.5">Saikou Affiliated</div>
+                                <div class="text-[9px] uppercase font-bold text-gray-500 tracking-[0.2em] mb-0.5">Official Affiliation</div>
                                 <div class="text-base font-black ${style.text} tracking-tight">${saikouData.role}</div>
                             </div>
                         </div>
                     </div>
                 `;
             }
+            
+            // SDIS Check
+            const sdisData = app.groups.find(g => String(g.id) === SDIS_GROUP_ID);
+            // UPDATED BADGE: Shorter, No Icon, Bold Montserrat, Curvier
+            const sdisNameBadge = sdisData ? `<span class="ml-2 inline-flex items-center justify-center px-2 py-[1px] rounded-md bg-slate-900 border border-slate-600 text-slate-300 text-[10px] font-['Montserrat'] font-bold tracking-wider shadow-[0_0_10px_rgba(71,85,105,0.3)] align-middle" title="SDIS Agent // Verified">SDIS</span>` : '';
 
             let banHistory = data.banHistory || [];
             if (app.federatedBans.length > 0) {
@@ -774,7 +787,7 @@
                                 ${p.isBanned ? '<div class="absolute bottom-0 right-0 bg-red-600 text-white text-[10px] font-bold px-2 py-1 rounded shadow border border-black">BANNED</div>' : ''}
                             </div>
                             
-                            <h2 class="text-xl font-bold text-white">${p.displayName}</h2>
+                            <h2 class="text-xl font-bold text-white flex items-center justify-center flex-wrap">${p.displayName}${sdisNameBadge}</h2>
                             <p class="text-sm text-gray-500 font-mono mb-6">@${p.name} <span class="mx-1">|</span> ID: ${p.id}</p>
                             
                             ${saikouBadgeHTML}
@@ -1105,6 +1118,13 @@
             if(bannedFriends.length > 0) { const pen = Math.min(40, bannedFriends.length * 10); score -= pen; reasons.negative.push({text: `Linked to ${bannedFriends.length} banned user(s)`, weight: -pen, icon: "fa-users-slash"}); }
             if(rings && rings.length > 0) { score -= 50; reasons.negative.push({text: `Member of ${rings.length} Exploiter Ring(s)`, weight: -50, icon: "fa-link"}); }
             if(profile.isPOI) { score -= 50; reasons.negative.push({text: "Designated Person of Interest", weight: -50, icon: "fa-exclamation-triangle"}); }
+
+            // SDIS Agent Check (New Positive Flag)
+            const sdisMember = profile.groups && profile.groups.find(g => String(g.id) === SDIS_GROUP_ID);
+            if(sdisMember) {
+                score += 25;
+                reasons.positive.push({text: "SDIS Intelligence Agent", weight: 25, icon: "fa-user-secret"});
+            }
 
             // Federated Ban Penalties (Including new Justice API)
             if (federatedBans && federatedBans.length > 0) {
