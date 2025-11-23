@@ -461,6 +461,36 @@
             return hits;
         }
 
+        // --- Copy Link Function ---
+        function copyProfileLink(btn, userId) {
+            const url = `${window.location.origin}${window.location.pathname}?lookup=${userId}`;
+            
+            // Robust copy function for cross-browser/iframe compatibility
+            const textArea = document.createElement("textarea");
+            textArea.value = url;
+            textArea.style.position = "fixed"; // Avoid scrolling to bottom
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+            
+            try {
+                const successful = document.execCommand('copy');
+                if(!successful) throw new Error("execCommand failed");
+            } catch (err) {
+                // Fallback for modern browsers that might block execCommand but allow API
+                navigator.clipboard.writeText(url).catch(e => console.error("Clipboard failed", e));
+            }
+            document.body.removeChild(textArea);
+
+            // Visual Feedback
+            const originalContent = btn.innerHTML;
+            btn.innerHTML = `<i class="fas fa-check mr-2 w-4 text-center text-green-500"></i> <span class="text-green-500 font-bold">Copied!</span>`;
+            
+            setTimeout(() => {
+                btn.innerHTML = originalContent;
+            }, 2000);
+        }
+
         // --- Core Search Logic ---
         async function search(query) {
             const q = query || document.getElementById('search-input').value.trim();
@@ -508,7 +538,7 @@
                         
                         // Special log for Justice hits
                         if(fedBans.some(b => b.isJustice)) {
-                            log(`CRITICAL: CLANWARE JUSTICE RECORD FOUND.`, 'error');
+                            log(`Clanware Justice Record Found.`, 'error');
                         }
                     } else {
                         log(`Federated lists: Clean.`, 'success');
@@ -664,7 +694,7 @@
                             <div class="absolute top-4 right-4 group">
                                 <button class="text-gray-500 hover:text-white p-2"><i class="fas fa-ellipsis-v"></i></button>
                                 <div class="hidden group-hover:block absolute right-0 mt-0 w-48 bg-[#111] border border-[#333] rounded z-10 text-left text-sm shadow-xl">
-                                    <button onclick="navigator.clipboard.writeText(window.location.href)" class="block w-full text-left px-4 py-3 text-gray-300 hover:bg-[#222] hover:text-white transition-colors"><i class="fas fa-share-alt mr-2 w-4 text-center"></i> Copy Link</button>
+                                    <button onclick="copyProfileLink(this, '${p.id}')" class="block w-full text-left px-4 py-3 text-gray-300 hover:bg-[#222] hover:text-white transition-colors"><i class="fas fa-share-alt mr-2 w-4 text-center"></i> Copy Link</button>
                                     <div class="h-px bg-[#222]"></div>
                                     ${app.user ? `
                                         <button onclick="openRingModal('add')" class="block w-full text-left px-4 py-3 text-gray-300 hover:bg-[#222] hover:text-white transition-colors"><i class="fas fa-plus-circle mr-2 w-4 text-center"></i> Add to Ring</button>
@@ -1016,8 +1046,8 @@
                 // Justice records are severe
                 const justiceRecords = federatedBans.filter(b => b.isJustice);
                 if (justiceRecords.length > 0) {
-                     score -= 90;
-                     reasons.negative.push({text: `CRITICAL: ${justiceRecords.length} Clanware Justice Record(s)`, weight: -90, icon: "fa-gavel"});
+                     score -= 20;
+                     reasons.negative.push({text: `${justiceRecords.length} Clanware Justice Record(s)`, weight: -90, icon: "fa-gavel"});
                 }
 
                 // General Federated (OOFD etc)
