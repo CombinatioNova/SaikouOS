@@ -80,7 +80,7 @@
         @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
         .animate-pulse-fast { animation: blink 1s infinite; }
 
-        /* POI Special Styling - Ported from lookup.html */
+        /* POI Special Styling */
         @keyframes pulse-danger {
             0%, 100% { box-shadow: 0 0 15px rgba(220, 38, 38, 0.1); border-color: rgba(220, 38, 38, 0.3); }
             50% { box-shadow: 0 0 25px rgba(220, 38, 38, 0.2); border-color: rgba(220, 38, 38, 0.6); }
@@ -226,6 +226,16 @@
         const DATA_WORKER = 'https://saikou-ban-proxy.saikoudevelopment.workers.dev';
         const ROTECTOR_API = 'https://roscoe.robalyx.com/v1/lookup/roblox/user';
         
+        // --- CONFIG: OOFD & EXTERNAL LISTS ---
+        const OOFD_API_URL = 'https://oofd.net/api/ban/status/';
+        
+        // Supports JSON Arrays OR Raw Text Files (e.g., GitHub Gists)
+        const EXTERNAL_DATABASES = [
+            // Example: { name: "Synapse Dump", url: "https://gist.githubusercontent.com/.../raw/...", proxy: true }
+        ];
+
+        const LOCAL_THREAT_IDS = ["1"]; // Example
+
         let app = { 
             user: null, 
             token: null, 
@@ -235,15 +245,15 @@
             rings: [], 
             bannedFriends: [],
             rotector: null,
+            federatedBans: [], 
             userRings: [],
-            friendSafety: new Map(), // Stores Rotector results for friends
+            friendSafety: new Map(),
             friendStats: { unsafe: 0, flagged: 0, scanned: 0, total: 0, errors: 0 }
         };
         
         // Avatar Cache Logic
         const IMG_CACHE = new Map();
         
-        // Improved Avatar Fetcher with multiple proxy fallbacks
         async function getAvatar(id, name) {
             if (!id || id === 'undefined') return `https://placehold.co/150x150/333/FFF?text=${(name||'?').charAt(0)}`;
             if (IMG_CACHE.has(id)) return IMG_CACHE.get(id);
@@ -266,10 +276,7 @@
                         document.querySelectorAll(`img[data-uid="${id}"]`).forEach(img => img.src = url);
                         return url;
                     }
-                } catch(e) {
-                    // Console warn rather than error for missing images to avoid clutter
-                    console.warn(`Avatar fetch failed for ${id}:`, e);
-                }
+                } catch(e) {}
             }
             return placeholder;
         }
@@ -280,10 +287,7 @@
             d.className = `log-entry ${type} font-mono text-[11px]`;
             d.innerHTML = `<span class="opacity-50 mr-2">${new Date().toLocaleTimeString().split(' ')[0]}</span>${msg}`;
             const c = document.getElementById('logs');
-            if(c) {
-                c.appendChild(d);
-                c.scrollTop = c.scrollHeight;
-            }
+            if(c) { c.appendChild(d); c.scrollTop = c.scrollHeight; }
         }
 
         function toggleModal(id) { document.getElementById(id).classList.remove('hidden'); }
@@ -324,15 +328,10 @@
         document.getElementById('btn-login-submit').onclick = async () => {
             const code = document.getElementById('login-code').value.trim();
             if(!code) return;
-            
             const btn = document.getElementById('btn-login-submit');
             btn.textContent = "Accessing..."; btn.disabled = true;
-            
             try {
-                const r = await fetch(`${AUTH_WORKER}/login`, {
-                    method:'POST', headers:{'Content-Type':'application/json'},
-                    body: JSON.stringify({ codePhrase: code })
-                });
+                const r = await fetch(`${AUTH_WORKER}/login`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ codePhrase: code }) });
                 const d = await r.json();
                 if(d.success) {
                     app.user = d.user; app.token = d.token;
@@ -341,58 +340,151 @@
                     closeModals(); renderAuth();
                     document.getElementById('login-code').value = '';
                 } else alert(d.error || "Access Denied");
-            } catch(e) { 
-                console.error("Login Error:", e);
-                alert("Connection Failure"); 
-            }
+            } catch(e) { alert("Connection Failure"); }
             btn.textContent = "Authenticate"; btn.disabled = false;
         };
+
+        // --- SPECIFIC OOFD/EXPLOIT CHECK (Ported from search.ts) ---
+        async function checkOOFD(userId) {
+            try {
+                // Using CORS proxy because this API is meant for servers
+                const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(OOFD_API_URL)}`;
+                
+                const response = await fetch(proxyUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ UserId: String(userId) })
+                });
+
+                if (!response.ok) return [];
+
+                const data = await response.json();
+                const bans = [];
+
+                // Logic ported from search.ts filterBans()
+                if (data.Banned === true && data.Data) {
+                    const entries = Array.isArray(data.Data) ? data.Data : [data.Data];
+                    
+                    entries.forEach(entry => {
+                        let reason = "";
+                        const bannedBy = (entry.BannedBy || "").toUpperCase();
+
+                        switch (bannedBy) {
+                            case 'SYNAPSE':
+                                reason = "Registered Synapse Owner (Exploit Injector)";
+                                break;
+                            case 'KRNL':
+                                reason = "Registered KRNL Owner (Exploit Injector)";
+                                break;
+                            default:
+                                reason = `Banned for exploiting by ${entry.BannedBy} group`;
+                                break;
+                        }
+
+                        bans.push({
+                            source: "OOFD Federation",
+                            reason: reason,
+                            date: new Date().toISOString(),
+                            isExploit: true // Flag for high risk score
+                        });
+                    });
+                }
+                
+                // Account Age Check (from search.ts)
+                if (data.AccountAge <= 182) {
+                    // We handle age in main calculator, but good to verify data exists
+                }
+
+                return bans;
+
+            } catch (e) {
+                console.warn("OOFD Check Failed:", e);
+                return [];
+            }
+        }
+
+        // --- General Federated Check ---
+        async function checkFederatedBans(userId) {
+            let hits = [];
+
+            // 1. Local Check
+            if (LOCAL_THREAT_IDS.includes(String(userId))) {
+                hits.push({ source: "Local Threat List", reason: "Manually Flagged by Operator", date: new Date().toISOString() });
+            }
+
+            // 2. OOFD Check (The one from your file)
+            const oofdBans = await checkOOFD(userId);
+            hits = [...hits, ...oofdBans];
+
+            // 3. Other External DBs
+            for (const db of EXTERNAL_DATABASES) {
+                if (db.url) {
+                    try {
+                        const targetUrl = db.proxy ? `https://corsproxy.io/?${encodeURIComponent(db.url)}` : db.url;
+                        const r = await fetch(targetUrl);
+                        if (r.ok) {
+                            const textData = await r.text();
+                            const regex = new RegExp(`(?:^|[^0-9])${userId}(?:$|[^0-9])`);
+                            if (regex.test(textData)) {
+                                hits.push({ source: db.name, reason: `Listed in ${db.name}`, date: new Date().toISOString() });
+                            }
+                        }
+                    } catch (e) { console.warn(`Federated check failed for ${db.name}`); }
+                }
+            }
+            return hits;
+        }
 
         // --- Core Search Logic ---
         async function search(query) {
             const q = query || document.getElementById('search-input').value.trim();
             if(!q) return;
-            
             document.getElementById('search-input').value = q;
 
-            // UI State
+            // UI Reset
             document.getElementById('dashboard-container').innerHTML = '';
             document.getElementById('dashboard-container').classList.add('hidden');
             document.getElementById('terminal').classList.remove('hidden');
             document.getElementById('logs').innerHTML = '';
             
-            // Reset State
             app.rotector = null;
+            app.federatedBans = [];
             app.friendSafety.clear();
             app.friendStats = { unsafe: 0, flagged: 0, scanned: 0, total: 0, errors: 0 };
 
-            // Mock Terminal output sequence
             log(`Initializing session...`);
             await new Promise(r => setTimeout(r, 300));
             log(`Target Identifier: ${q}`);
             log(`Connecting to SA-DB...`);
             
             try {
-                // Fetch Data from Data Worker (Public/Proxy)
                 const r = await fetch(`${DATA_WORKER}?lookup=${encodeURIComponent(q)}`);
                 const d = await r.json();
-
                 if(!d.success) throw new Error(d.error);
 
                 log(`Data stream received.`, 'success');
                 log(`Parsing threat vectors...`);
                 
-                // Update App State
                 app.profile = d.profile;
                 app.friends = d.friends || [];
                 app.groups = d.profile.groups || [];
                 app.bannedFriends = d.bannedFriends || [];
                 app.friendStats.total = app.friends.length;
-
-                // Default Rings from proxy (Fallback)
                 app.rings = d.ringIndicators || d.rings || [];
                 
-                // --- ROTECTOR INTEGRATION ---
+                // --- FEDERATED LISTS CHECK (Includes OOFD) ---
+                if (app.profile.id) {
+                    log(`Querying Federated Ban Lists & OOFD...`);
+                    const fedBans = await checkFederatedBans(app.profile.id);
+                    if (fedBans.length > 0) {
+                        app.federatedBans = fedBans;
+                        log(`MATCH FOUND: Subject listed in ${fedBans.length} database(s).`, 'error');
+                    } else {
+                        log(`Federated lists: Clean.`, 'success');
+                    }
+                }
+
+                // --- ROTECTOR ---
                 if (app.profile.id) {
                     try {
                         log(`Querying Rotector AI Safety Matrix...`);
@@ -402,32 +494,20 @@
                             if (rotData.success) {
                                 app.rotector = rotData.data;
                                 const flagType = app.rotector.flagType;
-                                const flagMsg = flagType === 2 ? "UNSAFE" : flagType === 0 ? "SAFE" : "PENDING";
                                 const logType = flagType === 2 ? "error" : flagType === 0 ? "success" : "warn";
-                                log(`Rotector AI Analysis: ${flagMsg}`, logType);
+                                log(`Rotector AI Analysis: ${flagType === 2 ? "UNSAFE" : flagType === 0 ? "SAFE" : "PENDING"}`, logType);
                             }
                         }
-                    } catch(e) {
-                        console.error("Rotector Single Lookup Failed:", e);
-                        log(`Rotector AI connection timed out.`, 'warn');
-                    }
+                    } catch(e) { log(`Rotector AI connection timed out.`, 'warn'); }
                 }
 
-                await new Promise(r => setTimeout(r, 500)); // UX delay
+                await new Promise(r => setTimeout(r, 500));
 
-                // --- PRE-CACHE AVATARS ---
-                if (d.friends) {
-                    d.friends.forEach(f => {
-                        if (f.avatarUrl && !f.avatarUrl.includes('placehold.co')) {
-                            IMG_CACHE.set(f.id, f.avatarUrl);
-                        }
-                    });
-                }
-                if (d.profile.avatarUrl && !d.profile.avatarUrl.includes('placehold.co')) {
-                    IMG_CACHE.set(d.profile.id, d.profile.avatarUrl);
-                }
+                // Pre-cache
+                if (d.friends) d.friends.forEach(f => { if (f.avatarUrl && !f.avatarUrl.includes('placehold.co')) IMG_CACHE.set(f.id, f.avatarUrl); });
+                if (d.profile.avatarUrl && !d.profile.avatarUrl.includes('placehold.co')) IMG_CACHE.set(d.profile.id, d.profile.avatarUrl);
 
-                // --- AUTH WORKER INTEGRATION (Rings) ---
+                // Auth Worker (Rings)
                 if(app.user) {
                     try {
                         log('Authenticating ring access...');
@@ -435,15 +515,10 @@
                         const rd = await rr.json();
                         if(rd.success && rd.rings) {
                             app.userRings = rd.rings;
-                            app.rings = rd.rings.filter(ring => 
-                                ring.members && ring.members.some(m => String(m.userId) === String(app.profile.id))
-                            );
+                            app.rings = rd.rings.filter(ring => ring.members && ring.members.some(m => String(m.userId) === String(app.profile.id)));
                             log('Ring vectors updated via SDIS.', 'success');
                         }
-                    } catch(e) {
-                        console.error("Ring Sync Failed:", e);
-                        log('SDIS Ring Sync Failed - Using Proxy Cache', 'warn');
-                    }
+                    } catch(e) { log('SDIS Ring Sync Failed - Using Proxy Cache', 'warn'); }
                 }
 
                 renderDashboard(d);
@@ -455,139 +530,62 @@
 
         // --- Batch Friend Safety Check ---
         async function batchCheckFriends() {
-            // FIX: Ensure all IDs are positive Integers to avoid API "ValidationError" (value: -1)
             const friendIds = app.friends.map(f => parseInt(f.id, 10)).filter(id => !isNaN(id) && id > 0);
             if (friendIds.length === 0) return;
-
             const BATCH_SIZE = 100;
             const statusEl = document.getElementById('friend-scan-status');
-            const statsEl = document.getElementById('friend-stats-display');
-
-            // Initialize UI
-            if(statsEl) statsEl.innerHTML = `<span class="text-gray-500">Initializing...</span>`;
             
-            // Reset counters
             app.friendStats = { unsafe: 0, flagged: 0, scanned: 0, total: friendIds.length, errors: 0 };
 
             for (let i = 0; i < friendIds.length; i += BATCH_SIZE) {
                 const batch = friendIds.slice(i, i + BATCH_SIZE);
-                const batchNum = Math.floor(i/BATCH_SIZE) + 1;
-                
                 if (statusEl) {
                     const percent = Math.min(100, Math.round(((i) / friendIds.length) * 100));
                     statusEl.innerHTML = `<i class="fas fa-sync fa-spin text-xs"></i> Scanning ${percent}%`;
                 }
-
-                console.log(`Checking Batch ${batchNum}:`, batch); // DEBUG: Show what is being sent
-
                 try {
-                    const response = await fetch(ROTECTOR_API, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ ids: batch })
-                    });
-
-                    // ----------------------------------------------
-                    // MODIFIED: Explicitly throw error if HTTP status is not OK (e.g., 404, 500, 429)
-                    // and try to get the text response for debugging.
-                    // ----------------------------------------------
-                    if (!response.ok) {
-                        let errText = response.statusText;
-                        try { errText = await response.text(); } catch(e){}
-                        throw new Error(`HTTP ${response.status}: ${errText}`);
-                    }
-
+                    const response = await fetch(ROTECTOR_API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids: batch }) });
+                    if (!response.ok) throw new Error("API Error");
                     const data = await response.json();
                     if (data.success && data.data) {
-                        let batchFlags = 0;
                         Object.values(data.data).forEach(user => {
                             app.friendSafety.set(String(user.id), user);
                             if (user.flagType === 2) app.friendStats.unsafe++;
-                            if (user.flagType > 0) {
-                                app.friendStats.flagged++;
-                                batchFlags++;
-                            }
+                            if (user.flagType > 0) app.friendStats.flagged++;
                         });
                         app.friendStats.scanned += batch.length;
-                        // Log success to terminal so user knows it actually worked
-                        log(`Batch ${batchNum}: Analyzed ${batch.length} users. ${batchFlags > 0 ? `(${batchFlags} flagged)` : ''}`, 'success');
-                    } else {
-                        // Handle API-level error (where HTTP was 200 but success: false)
-                        console.warn('Batch scan API error:', data);
-                        throw new Error('API responded successfully but reported failure: ' + (data.error || 'Unknown error'));
                     }
-                } catch (e) {
-                    // ----------------------------------------------
-                    // MODIFIED: Log the full error to the browser console
-                    // ----------------------------------------------
-                    console.error(`Batch ${batchNum} FAILED:`, e);
-                    
-                    log(`Batch ${batchNum}: Failed - Check Console`, 'error');
-                    app.friendStats.errors++;
-                }
-                
-                // Live update
+                } catch (e) { app.friendStats.errors++; }
                 updateFriendGrid();
                 updateFriendStatsUI();
-                
-                // Rate limit safety delay
                 await new Promise(r => setTimeout(r, 300));
             }
-            
-            if (statusEl) statusEl.innerHTML = app.friendStats.errors > 0 ? `<span class="text-red-500">Scan Completed with Errors</span>` : `<span class="text-gray-500">Scan Complete</span>`;
+            if (statusEl) statusEl.innerHTML = app.friendStats.errors > 0 ? `<span class="text-red-500">Scan Errors</span>` : `<span class="text-gray-500">Scan Complete</span>`;
             updateFriendStatsUI();
         }
 
         function updateFriendStatsUI() {
             const el = document.getElementById('friend-stats-display');
             if (!el) return;
-
-            if (app.friendStats.errors > 0) {
-                el.innerHTML = `<span class="text-red-500 font-bold" title="Some batches failed"><i class="fas fa-exclamation-circle"></i> Errors Detected (${app.friendStats.errors})</span>`;
-            } else if (app.friendStats.unsafe > 0) {
-                el.innerHTML = `<span class="text-red-500 font-bold animate-pulse"><i class="fas fa-exclamation-triangle"></i> ${app.friendStats.unsafe} Unsafe Found</span>`;
-            } else if (app.friendStats.flagged > 0) {
-                el.innerHTML = `<span class="text-yellow-500 font-bold"><i class="fas fa-flag"></i> ${app.friendStats.flagged} Flagged</span>`;
-            } else if (app.friendStats.scanned >= app.friendStats.total) {
-                 el.innerHTML = `<span class="text-green-500"><i class="fas fa-check"></i> All Clean</span>`;
-            } else {
-                el.innerHTML = `<span class="text-gray-500">${app.friendStats.scanned}/${app.friendStats.total} Scanned</span>`;
-            }
+            if (app.friendStats.errors > 0) el.innerHTML = `<span class="text-red-500 font-bold"><i class="fas fa-exclamation-circle"></i> Errors (${app.friendStats.errors})</span>`;
+            else if (app.friendStats.unsafe > 0) el.innerHTML = `<span class="text-red-500 font-bold animate-pulse"><i class="fas fa-exclamation-triangle"></i> ${app.friendStats.unsafe} Unsafe</span>`;
+            else if (app.friendStats.flagged > 0) el.innerHTML = `<span class="text-yellow-500 font-bold"><i class="fas fa-flag"></i> ${app.friendStats.flagged} Flagged</span>`;
+            else if (app.friendStats.scanned >= app.friendStats.total) el.innerHTML = `<span class="text-green-500"><i class="fas fa-check"></i> Clean</span>`;
+            else el.innerHTML = `<span class="text-gray-500">${app.friendStats.scanned}/${app.friendStats.total} Scanned</span>`;
         }
 
-        // --- POI Details Fetcher (Runs AFTER Render) ---
         async function fetchPOIDetails(userId) {
-            const container = document.getElementById('poi-data-container');
-            const loginMsg = document.getElementById('poi-login-msg');
-            const reasonEl = document.getElementById('poi-reason-text');
-            const markerEl = document.getElementById('poi-marker');
-            const dateEl = document.getElementById('poi-date');
-
-            if (!app.token) {
-                if(loginMsg) loginMsg.classList.remove('hidden');
-                return;
-            }
-
-            if(container) container.classList.remove('hidden');
-
+            if (!app.token) { document.getElementById('poi-login-msg')?.classList.remove('hidden'); return; }
+            document.getElementById('poi-data-container')?.classList.remove('hidden');
             try {
-                const response = await fetch(`${DATA_WORKER}/poi/${userId}`, {
-                    headers: { 'Authorization': `Bearer ${app.token}` }
-                });
+                const response = await fetch(`${DATA_WORKER}/poi/${userId}`, { headers: { 'Authorization': `Bearer ${app.token}` } });
                 const result = await response.json();
-                
                 if (result.success && result.data) {
-                    const data = result.data;
-                    if(markerEl) markerEl.textContent = data.markedBy || 'Unknown';
-                    if(reasonEl) reasonEl.textContent = data.reason || 'No reason provided.';
-                    if(dateEl) dateEl.textContent = data.timestamp ? new Date(data.timestamp).toLocaleDateString() : 'Unknown';
-                } else {
-                    if(reasonEl) reasonEl.textContent = "Error loading confidential details.";
+                    document.getElementById('poi-marker').textContent = result.data.markedBy || 'Unknown';
+                    document.getElementById('poi-reason-text').textContent = result.data.reason || 'No reason provided.';
+                    document.getElementById('poi-date').textContent = result.data.timestamp ? new Date(result.data.timestamp).toLocaleDateString() : 'Unknown';
                 }
-            } catch (e) {
-                console.error("POI Fetch Failed:", e);
-                if(reasonEl) reasonEl.textContent = "Connection failed.";
-            }
+            } catch (e) { document.getElementById('poi-reason-text').textContent = "Connection failed."; }
         }
 
         // --- Dashboard Rendering ---
@@ -597,14 +595,23 @@
             container.classList.remove('hidden');
             
             const p = data.profile;
-            const risk = calculateSafetyScore(p, app.friends, app.rings, app.bannedFriends, app.rotector);
+            const risk = calculateSafetyScore(p, app.friends, app.rings, app.bannedFriends, app.rotector, app.federatedBans);
             
-            // Risk Colors
+            let banHistory = data.banHistory || [];
+            if (app.federatedBans.length > 0) {
+                const fedBanRecords = app.federatedBans.map(fb => ({
+                    Reason: fb.reason,
+                    type: fb.isExploit ? "EXPLOIT" : "EXTERNAL",
+                    Date: fb.date,
+                    Moderator: fb.source
+                }));
+                banHistory = [...fedBanRecords, ...banHistory];
+            }
+
             let rColor = "text-green-500"; let rBorder = "border-white";
             if(risk.rating === 'Unsafe') { rColor = "text-red-500"; rBorder = "border-red-600"; }
             else if(risk.rating === 'Caution') { rColor = "text-yellow-500"; rBorder = "border-yellow-500"; }
 
-            // Helper for role styling
             const getRoleStyle = (role) => {
                 switch(role) {
                     case 'Leader': return 'bg-red-500 text-white border-red-400';
@@ -616,38 +623,23 @@
                 }
             };
 
-            // Construct HTML Grid
             container.innerHTML = `
                 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
                     
                     <!-- LEFT COLUMN: Identity -->
                     <div class="space-y-6">
                         <div class="min-panel p-6 text-center relative ${p.isPOI ? 'poi-border border-2' : ''}">
-                            <!-- Action Menu -->
                             <div class="absolute top-4 right-4 group">
                                 <button class="text-gray-500 hover:text-white p-2"><i class="fas fa-ellipsis-v"></i></button>
                                 <div class="hidden group-hover:block absolute right-0 mt-0 w-48 bg-[#111] border border-[#333] rounded z-10 text-left text-sm shadow-xl">
-                                    <button onclick="navigator.clipboard.writeText(window.location.href)" class="block w-full text-left px-4 py-3 text-gray-300 hover:bg-[#222] hover:text-white transition-colors">
-                                        <i class="fas fa-share-alt mr-2 w-4 text-center"></i> Copy Link
-                                    </button>
+                                    <button onclick="navigator.clipboard.writeText(window.location.href)" class="block w-full text-left px-4 py-3 text-gray-300 hover:bg-[#222] hover:text-white transition-colors"><i class="fas fa-share-alt mr-2 w-4 text-center"></i> Copy Link</button>
                                     <div class="h-px bg-[#222]"></div>
                                     ${app.user ? `
-                                        <button onclick="openRingModal('add')" class="block w-full text-left px-4 py-3 text-gray-300 hover:bg-[#222] hover:text-white transition-colors">
-                                            <i class="fas fa-plus-circle mr-2 w-4 text-center"></i> Add to Ring
-                                        </button>
-                                        <button onclick="openRingModal('remove')" class="block w-full text-left px-4 py-3 text-gray-300 hover:bg-[#222] hover:text-white transition-colors">
-                                            <i class="fas fa-minus-circle mr-2 w-4 text-center"></i> Remove Ring
-                                        </button>
+                                        <button onclick="openRingModal('add')" class="block w-full text-left px-4 py-3 text-gray-300 hover:bg-[#222] hover:text-white transition-colors"><i class="fas fa-plus-circle mr-2 w-4 text-center"></i> Add to Ring</button>
+                                        <button onclick="openRingModal('remove')" class="block w-full text-left px-4 py-3 text-gray-300 hover:bg-[#222] hover:text-white transition-colors"><i class="fas fa-minus-circle mr-2 w-4 text-center"></i> Remove Ring</button>
                                         <div class="h-px bg-[#222]"></div>
-                                        ${!p.isPOI ? `
-                                            <button onclick="toggleModal('modal-poi')" class="block w-full text-left px-4 py-3 text-red-400 hover:bg-red-900/20 transition-colors">
-                                                <i class="fas fa-exclamation-triangle mr-2 w-4 text-center"></i> Mark POI
-                                            </button>` 
-                                        : `
-                                            <button onclick="unmarkPoi()" class="block w-full text-left px-4 py-3 text-green-400 hover:bg-green-900/20 transition-colors">
-                                                <i class="fas fa-check mr-2 w-4 text-center"></i> Unmark POI
-                                            </button>`
-                                        }
+                                        ${!p.isPOI ? `<button onclick="toggleModal('modal-poi')" class="block w-full text-left px-4 py-3 text-red-400 hover:bg-red-900/20 transition-colors"><i class="fas fa-exclamation-triangle mr-2 w-4 text-center"></i> Mark POI</button>` 
+                                        : `<button onclick="unmarkPoi()" class="block w-full text-left px-4 py-3 text-green-400 hover:bg-green-900/20 transition-colors"><i class="fas fa-check mr-2 w-4 text-center"></i> Unmark POI</button>`}
                                     ` : '<div class="px-4 py-3 text-[10px] text-gray-600 uppercase text-center">Login for actions</div>'}
                                 </div>
                             </div>
@@ -660,7 +652,6 @@
                             <h2 class="text-xl font-bold text-white">${p.displayName}</h2>
                             <p class="text-sm text-gray-500 font-mono mb-6">@${p.name} <span class="mx-1">|</span> ID: ${p.id}</p>
                             
-                            <!-- POI DOSSIER CARD -->
                             ${p.isPOI ? `
                                 <div class="poi-alert-card mb-6 text-left relative overflow-hidden">
                                     <div class="flex items-start gap-4">
@@ -668,26 +659,11 @@
                                         <div class="w-full">
                                             <h3 class="text-xl font-bold text-red-400 uppercase tracking-wider">Person of Interest</h3>
                                             <p class="text-xs text-gray-300 mb-3 leading-tight">This user has been flagged by SDIS. Exercise extreme caution.</p>
-                                            
-                                            <!-- Content Container -->
                                             <div id="poi-data-container" class="hidden space-y-3 pt-3 border-t border-red-500/30">
-                                                <div>
-                                                    <div class="text-[10px] uppercase text-red-400/70 font-bold mb-1">Reason for Designation</div>
-                                                    <div id="poi-reason-text" class="text-xs text-gray-200 bg-red-950/40 p-2 rounded border border-red-900/50 font-mono leading-relaxed">Loading dossier...</div>
-                                                </div>
-                                                <div class="flex justify-between items-end text-[10px] font-mono text-gray-400">
-                                                    <div>
-                                                        <div class="flex items-center gap-1"><i class="fas fa-user-shield"></i> <span id="poi-marker">...</span></div>
-                                                        <div class="flex items-center gap-1 mt-0.5"><i class="fas fa-calendar"></i> <span id="poi-date">...</span></div>
-                                                    </div>
-                                                    ${app.user ? `<button onclick="unmarkPoi()" class="text-red-500 hover:text-white hover:underline">Revoke</button>` : ''}
-                                                </div>
+                                                <div><div class="text-[10px] uppercase text-red-400/70 font-bold mb-1">Reason</div><div id="poi-reason-text" class="text-xs text-gray-200 bg-red-950/40 p-2 rounded border border-red-900/50 font-mono leading-relaxed">Loading...</div></div>
+                                                <div class="flex justify-between items-end text-[10px] font-mono text-gray-400"><div><div class="flex items-center gap-1"><i class="fas fa-user-shield"></i> <span id="poi-marker">...</span></div><div class="flex items-center gap-1 mt-0.5"><i class="fas fa-calendar"></i> <span id="poi-date">...</span></div></div>${app.user ? `<button onclick="unmarkPoi()" class="text-red-500 hover:text-white hover:underline">Revoke</button>` : ''}</div>
                                             </div>
-                                            
-                                            <!-- Restricted Message -->
-                                            <div id="poi-login-msg" class="hidden text-xs text-red-300 bg-red-900/20 p-2 rounded border border-red-800/50 mt-2 flex items-center gap-2">
-                                                <i class="fas fa-lock"></i> Restricted Dossier - Login to View Details
-                                            </div>
+                                            <div id="poi-login-msg" class="hidden text-xs text-red-300 bg-red-900/20 p-2 rounded border border-red-800/50 mt-2 flex items-center gap-2"><i class="fas fa-lock"></i> Restricted Dossier - Login to View Details</div>
                                         </div>
                                     </div>
                                 </div>
@@ -705,7 +681,6 @@
                             </div>
                         </div>
 
-                        <!-- Meta Info -->
                         <div class="min-panel p-5 space-y-3 text-sm">
                             <h3 class="text-xs font-bold text-gray-500 uppercase mb-3">Metadata</h3>
                             <div class="flex justify-between"><span class="text-gray-500">Created</span><span class="font-mono text-xs text-white">${new Date(p.created).toLocaleDateString()}</span></div>
@@ -715,30 +690,21 @@
                             <div class="pt-3 border-t border-[#333]">
                                 <div class="text-[10px] text-gray-600 uppercase mb-1">Bio</div>
                                 <div class="text-xs text-gray-400 italic break-words">${p.description || "No description."}</div>
-                                ${risk.decoded ? `
-                                    <div class="mt-2 bg-yellow-900/20 border border-yellow-900/50 p-2 rounded">
-                                        <div class="text-[10px] text-yellow-600 uppercase font-bold mb-1"><i class="fas fa-unlock mr-1"></i>Decoded</div>
-                                        <div class="text-xs text-yellow-500/80 font-mono">${risk.decoded}</div>
-                                    </div>` 
-                                : ''}
+                                ${risk.decoded ? `<div class="mt-2 bg-yellow-900/20 border border-yellow-900/50 p-2 rounded"><div class="text-[10px] text-yellow-600 uppercase font-bold mb-1"><i class="fas fa-unlock mr-1"></i>Decoded</div><div class="text-xs text-yellow-500/80 font-mono">${risk.decoded}</div></div>` : ''}
                             </div>
                         </div>
 
-                        <!-- Ban History -->
                         <div class="min-panel p-5">
                             <h3 class="text-xs font-bold text-gray-500 uppercase mb-3">Disciplinary Record</h3>
-                            ${(data.banHistory && data.banHistory.length) ? 
+                            ${(banHistory.length) ? 
                                 `<div class="space-y-2 max-h-40 overflow-y-auto custom-scroll pr-1">
-                                    ${data.banHistory.map(b => `
-                                        <div class="border border-[#333] p-2 bg-[#111] rounded text-xs">
+                                    ${banHistory.map(b => `
+                                        <div class="border border-[#333] p-2 bg-[#111] rounded text-xs ${b.type === 'EXPLOIT' ? 'border-l-2 border-l-purple-500' : b.type === 'EXTERNAL' ? 'border-l-2 border-l-red-500' : ''}">
                                             <div class="font-bold text-white flex justify-between">
-                                                <span>${b.Reason}</span>
-                                                <span class="text-[10px] px-1 bg-red-900 text-red-200 rounded">${b.type==='permban'?'PERM':'TEMP'}</span>
+                                                <span class="truncate pr-2" title="${b.Reason}">${b.Reason}</span>
+                                                <span class="text-[10px] px-1 bg-red-900 text-red-200 rounded whitespace-nowrap">${b.type}</span>
                                             </div>
-                                            <div class="text-gray-500 mt-1 flex justify-between">
-                                                <span>${new Date(b.Date).toLocaleDateString()}</span>
-                                                <span>By: ${b.Moderator}</span>
-                                            </div>
+                                            <div class="text-gray-500 mt-1 flex justify-between"><span>${new Date(b.Date).toLocaleDateString()}</span><span>By: ${b.Moderator}</span></div>
                                         </div>
                                     `).join('')}
                                 </div>` 
@@ -747,10 +713,7 @@
                         </div>
                     </div>
 
-                    <!-- RIGHT COLUMN: Risk & Associations -->
                     <div class="lg:col-span-2 space-y-6">
-                        
-                        <!-- Threat Assessment -->
                         <div class="min-panel p-6 border-l-2 ${rBorder}">
                             <div class="flex justify-between items-start mb-4">
                                 <div>
@@ -759,114 +722,42 @@
                                 </div>
                                 <div class="text-right">
                                     <div class="text-4xl font-black ${rColor}">${risk.score}</div>
-                                    ${app.rotector && app.rotector.flagType > 0 ? `
-                                        <div class="text-[9px] text-gray-500 uppercase font-mono mt-1">AI Confidence: ${(app.rotector.confidence * 100).toFixed(0)}%</div>
-                                    ` : ''}
+                                    ${app.rotector && app.rotector.flagType > 0 ? `<div class="text-[9px] text-gray-500 uppercase font-mono mt-1">AI Confidence: ${(app.rotector.confidence * 100).toFixed(0)}%</div>` : ''}
                                 </div>
                             </div>
-                            
-                            <div class="w-full bg-[#222] h-1.5 rounded-full overflow-hidden mb-6">
-                                <div class="risk-bar-fill ${risk.rating === 'Unsafe' ? 'bg-red-600' : risk.rating === 'Caution' ? 'bg-yellow-500' : 'bg-green-500'}" style="width: ${risk.score}%"></div>
-                            </div>
-
+                            <div class="w-full bg-[#222] h-1.5 rounded-full overflow-hidden mb-6"><div class="risk-bar-fill ${risk.rating === 'Unsafe' ? 'bg-red-600' : risk.rating === 'Caution' ? 'bg-yellow-500' : 'bg-green-500'}" style="width: ${risk.score}%"></div></div>
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
-                                ${risk.reasons.negative.map(r => `
-                                    <div class="border border-[#333] bg-red-900/5 p-2 rounded flex items-center justify-between">
-                                        <div class="flex items-center gap-2 overflow-hidden">
-                                            <div class="w-6 h-6 rounded-full bg-red-900/20 text-red-500 flex items-center justify-center text-[10px] flex-shrink-0">
-                                                <i class="fas ${r.icon}"></i>
-                                            </div>
-                                            <span class="text-xs text-gray-300 truncate" title="${r.text}">${r.text}</span>
-                                        </div>
-                                        <span class="text-xs font-mono text-red-500 font-bold ml-2">${r.weight}</span>
-                                    </div>
-                                `).join('')}
-                                ${risk.reasons.positive.map(r => `
-                                    <div class="border border-[#333] bg-green-900/5 p-2 rounded flex items-center justify-between">
-                                        <div class="flex items-center gap-2 overflow-hidden">
-                                            <div class="w-6 h-6 rounded-full bg-green-900/20 text-green-500 flex items-center justify-center text-[10px] flex-shrink-0">
-                                                <i class="fas ${r.icon}"></i>
-                                            </div>
-                                            <span class="text-xs text-gray-300 truncate" title="${r.text}">${r.text}</span>
-                                        </div>
-                                        <span class="text-xs font-mono text-green-500 font-bold ml-2">+${r.weight}</span>
-                                    </div>
-                                `).join('')}
+                                ${risk.reasons.negative.map(r => `<div class="border border-[#333] bg-red-900/5 p-2 rounded flex items-center justify-between"><div class="flex items-center gap-2 overflow-hidden"><div class="w-6 h-6 rounded-full bg-red-900/20 text-red-500 flex items-center justify-center text-[10px] flex-shrink-0"><i class="fas ${r.icon}"></i></div><span class="text-xs text-gray-300 truncate" title="${r.text}">${r.text}</span></div><span class="text-xs font-mono text-red-500 font-bold ml-2">${r.weight}</span></div>`).join('')}
+                                ${risk.reasons.positive.map(r => `<div class="border border-[#333] bg-green-900/5 p-2 rounded flex items-center justify-between"><div class="flex items-center gap-2 overflow-hidden"><div class="w-6 h-6 rounded-full bg-green-900/20 text-green-500 flex items-center justify-center text-[10px] flex-shrink-0"><i class="fas ${r.icon}"></i></div><span class="text-xs text-gray-300 truncate" title="${r.text}">${r.text}</span></div><span class="text-xs font-mono text-green-500 font-bold ml-2">+${r.weight}</span></div>`).join('')}
                             </div>
-
-                            <!-- Rotector Detailed Analysis Block -->
                             ${(app.rotector && app.rotector.reasons && Object.keys(app.rotector.reasons).length > 0) ? `
                                 <div class="mt-4 pt-4 border-t border-[#333]">
-                                    <div class="text-xs font-bold text-gray-500 uppercase mb-3 flex items-center gap-2">
-                                        <i class="fas fa-brain text-orange-500"></i> AI Intelligence Report
-                                    </div>
-                                    <div class="space-y-3">
-                                        ${Object.entries(app.rotector.reasons).map(([name, data]) => `
-                                            <div class="bg-[#111] border border-[#333] rounded p-4 relative overflow-hidden">
-                                                <div class="absolute left-0 top-0 bottom-0 w-1 bg-orange-600"></div>
-                                                <div class="flex justify-between items-start mb-1">
-                                                    <span class="text-orange-500 font-bold text-sm">${name} <span class="text-xs opacity-75 ml-1 text-gray-500">(${(data.confidence*100).toFixed(0)}%)</span></span>
-                                                </div>
-                                                <p class="text-gray-300 text-xs mb-3 leading-relaxed">${data.message}</p>
-                                                ${data.evidence ? `
-                                                    <div class="bg-[#000] border border-[#222] rounded p-2 text-[10px] font-mono text-gray-500 break-all relative">
-                                                        <span class="absolute top-[-8px] left-2 bg-[#000] px-1 text-[8px] uppercase text-gray-600">Evidence</span>
-                                                        ${Array.isArray(data.evidence) ? data.evidence.join('<br>') : data.evidence}
-                                                    </div>
-                                                ` : ''}
-                                            </div>
-                                        `).join('')}
-                                    </div>
+                                    <div class="text-xs font-bold text-gray-500 uppercase mb-3 flex items-center gap-2"><i class="fas fa-brain text-orange-500"></i> AI Intelligence Report</div>
+                                    <div class="space-y-3">${Object.entries(app.rotector.reasons).map(([name, data]) => `<div class="bg-[#111] border border-[#333] rounded p-4 relative overflow-hidden"><div class="absolute left-0 top-0 bottom-0 w-1 bg-orange-600"></div><div class="flex justify-between items-start mb-1"><span class="text-orange-500 font-bold text-sm">${name} <span class="text-xs opacity-75 ml-1 text-gray-500">(${(data.confidence*100).toFixed(0)}%)</span></span></div><p class="text-gray-300 text-xs mb-3 leading-relaxed">${data.message}</p>${data.evidence ? `<div class="bg-[#000] border border-[#222] rounded p-2 text-[10px] font-mono text-gray-500 break-all relative"><span class="absolute top-[-8px] left-2 bg-[#000] px-1 text-[8px] uppercase text-gray-600">Evidence</span>${Array.isArray(data.evidence) ? data.evidence.join('<br>') : data.evidence}</div>` : ''}</div>`).join('')}</div>
                                 </div>
                             ` : ''}
-
                         </div>
 
-                        <!-- Rings -->
                         ${app.rings.length > 0 ? `
                             <div class="min-panel p-5 border-l-2 border-red-600 bg-red-900/5">
-                                <h3 class="text-sm font-bold text-white uppercase mb-3 flex items-center gap-2">
-                                    <i class="fas fa-link text-red-500"></i> Ring Affiliations
-                                </h3>
+                                <h3 class="text-sm font-bold text-white uppercase mb-3 flex items-center gap-2"><i class="fas fa-link text-red-500"></i> Ring Affiliations</h3>
                                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                     ${app.rings.map(r => {
                                         const mem = r.members ? r.members.find(m => String(m.userId) === String(p.id)) : null;
                                         const role = mem ? mem.role : 'Member';
                                         const count = r.members ? r.members.length : 0;
                                         const roleStyle = getRoleStyle(role);
-                                        return `
-                                        <div class="border border-[#333] bg-[#111] p-3 rounded hover:border-[#555] transition-colors relative group cursor-pointer" onclick="openRingModal('remove')" title="${r.description||''}">
-                                            <div class="flex justify-between items-start mb-2">
-                                                <div class="text-red-300 font-bold text-sm truncate pr-2">${r.name}</div>
-                                                <div class="text-[10px] text-gray-500 flex-shrink-0 bg-[#222] px-1.5 py-0.5 rounded border border-[#333] flex items-center gap-1">
-                                                    <i class="fas fa-users"></i> ${count}
-                                                </div>
-                                            </div>
-                                            <div class="flex items-center justify-between">
-                                                <span class="text-[10px] uppercase font-bold px-2 py-0.5 rounded border ${roleStyle} shadow-sm tracking-wider">
-                                                    ${role}
-                                                </span>
-                                                <span class="text-[9px] text-gray-600 font-mono">${r.isActive !== false ? 'ACTIVE' : 'INACTIVE'}</span>
-                                            </div>
-                                        </div>
-                                        `;
+                                        return `<div class="border border-[#333] bg-[#111] p-3 rounded hover:border-[#555] transition-colors relative group cursor-pointer" onclick="openRingModal('remove')" title="${r.description||''}"><div class="flex justify-between items-start mb-2"><div class="text-red-300 font-bold text-sm truncate pr-2">${r.name}</div><div class="text-[10px] text-gray-500 flex-shrink-0 bg-[#222] px-1.5 py-0.5 rounded border border-[#333] flex items-center gap-1"><i class="fas fa-users"></i> ${count}</div></div><div class="flex items-center justify-between"><span class="text-[10px] uppercase font-bold px-2 py-0.5 rounded border ${roleStyle} shadow-sm tracking-wider">${role}</span><span class="text-[9px] text-gray-600 font-mono">${r.isActive !== false ? 'ACTIVE' : 'INACTIVE'}</span></div></div>`;
                                     }).join('')}
                                 </div>
                             </div>
                         ` : ''}
 
-                        <!-- Associates Grid -->
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <!-- Friends -->
                             <div class="min-panel p-5 flex flex-col h-[400px]">
                                 <div class="flex justify-between items-center mb-4 border-b border-[#333] pb-2">
-                                    <div class="flex items-center gap-2">
-                                        <h3 class="text-sm font-bold text-white uppercase">Associates</h3>
-                                        <div id="friend-scan-status" class="text-[9px] text-gray-500 font-mono"></div>
-                                    </div>
-                                    <div id="friend-stats-display" class="text-[10px] font-mono">
-                                        <span class="text-gray-600">Waiting...</span>
-                                    </div>
+                                    <div class="flex items-center gap-2"><h3 class="text-sm font-bold text-white uppercase">Associates</h3><div id="friend-scan-status" class="text-[9px] text-gray-500 font-mono"></div></div>
+                                    <div id="friend-stats-display" class="text-[10px] font-mono"><span class="text-gray-600">Waiting...</span></div>
                                 </div>
                                 <div id="friends-grid-target" class="grid grid-cols-4 gap-2 mb-4 content-start flex-1 overflow-y-auto custom-scroll"></div>
                                 <div class="flex justify-between pt-2 border-t border-[#333] items-center">
@@ -876,26 +767,10 @@
                                 </div>
                             </div>
 
-                            <!-- Groups -->
                             <div class="min-panel p-5 flex flex-col h-[400px]">
-                                <div class="flex justify-between items-center mb-4">
-                                    <h3 class="text-sm font-bold text-white uppercase">Groups</h3>
-                                    <span class="text-xs text-gray-500 font-mono">${app.groups.length} Total</span>
-                                </div>
+                                <div class="flex justify-between items-center mb-4"><h3 class="text-sm font-bold text-white uppercase">Groups</h3><span class="text-xs text-gray-500 font-mono">${app.groups.length} Total</span></div>
                                 <div class="space-y-1 overflow-y-auto custom-scroll flex-1 pr-1">
-                                    ${app.groups.map(g => `
-                                        <div class="flex items-center justify-between p-2 border border-transparent hover:border-[#333] hover:bg-[#111] rounded transition-colors group">
-                                            <div class="flex items-center gap-3 overflow-hidden">
-                                                <div class="w-8 h-8 bg-[#222] rounded flex-shrink-0 flex items-center justify-center text-gray-600">
-                                                    <i class="fas fa-users text-xs"></i>
-                                                </div>
-                                                <div class="min-w-0">
-                                                    <div class="text-xs text-white font-bold truncate">${g.name}</div>
-                                                    <div class="text-[10px] text-gray-500 truncate">${g.role || 'Member'}</div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    `).join('')}
+                                    ${app.groups.map(g => `<div class="flex items-center justify-between p-2 border border-transparent hover:border-[#333] hover:bg-[#111] rounded transition-colors group"><div class="flex items-center gap-3 overflow-hidden"><div class="w-8 h-8 bg-[#222] rounded flex-shrink-0 flex items-center justify-center text-gray-600"><i class="fas fa-users text-xs"></i></div><div class="min-w-0"><div class="text-xs text-white font-bold truncate">${g.name}</div><div class="text-[10px] text-gray-500 truncate">${g.role || 'Member'}</div></div></div></div>`).join('')}
                                     ${app.groups.length === 0 ? '<div class="text-gray-600 text-xs text-center mt-10">No public groups found.</div>' : ''}
                                 </div>
                             </div>
@@ -904,17 +779,11 @@
                 </div>
             `;
 
-            // Post-render actions
             initFriendPager();
-            batchCheckFriends(); // AUTO START BATCH SCAN
-            if (p.isPOI) {
-                fetchPOIDetails(p.id);
-            }
+            batchCheckFriends(); 
+            if (p.isPOI) fetchPOIDetails(p.id);
         }
 
-        // ... (Existing Friend Pager, Utils, Ring Actions Logic remains unchanged) ...
-        
-        // --- Friend Pager Logic ---
         let fPage = 1;
         const fPer = 12; 
 
@@ -935,8 +804,6 @@
             slice.forEach(async f => {
                 const isBanned = app.bannedFriends.some(bf => String(bf.id) === String(f.id));
                 const safetyData = app.friendSafety.get(String(f.id));
-                
-                // Styling based on Safety Status
                 let borderClass = 'border-transparent';
                 let bgClass = 'bg-[#111]';
                 let glowEffect = '';
@@ -947,14 +814,14 @@
                     statusBadge = '<div class="absolute top-1 right-1 text-[8px] bg-red-600 text-white px-1.5 py-0.5 font-bold rounded z-10 shadow-sm">BANNED</div>';
                     glowEffect = 'shadow-[0_0_10px_rgba(220,38,38,0.2)]';
                 } else if (safetyData) {
-                    if (safetyData.flagType === 2) { // Unsafe
+                    if (safetyData.flagType === 2) { 
                         borderClass = 'border-red-600';
                         bgClass = 'bg-red-950/20';
                         glowEffect = 'shadow-[0_0_10px_rgba(220,38,38,0.1)]';
                         statusBadge = '<div class="absolute top-1 left-1 text-[8px] bg-red-600 text-white px-1.5 py-0.5 font-bold rounded z-10 shadow-sm"><i class="fas fa-exclamation-triangle"></i></div>';
-                    } else if (safetyData.flagType === 1 || safetyData.flagType === 5) { // Pending/Mixed
+                    } else if (safetyData.flagType === 1 || safetyData.flagType === 5) {
                          borderClass = 'border-yellow-600/50';
-                    } else if (safetyData.flagType === 6) { // Past Offender
+                    } else if (safetyData.flagType === 6) { 
                          borderClass = 'border-orange-600';
                          glowEffect = 'shadow-[0_0_10px_rgba(234,88,12,0.2)]';
                          statusBadge = '<div class="absolute top-1 left-1 text-[8px] bg-orange-600 text-white px-1.5 py-0.5 font-bold rounded z-10 shadow-sm"><i class="fas fa-history"></i></div>';
@@ -964,26 +831,14 @@
                 const div = document.createElement('div');
                 div.className = `${bgClass} p-2 rounded text-center cursor-pointer hover:bg-[#222] transition relative group border ${borderClass} ${glowEffect}`;
                 div.onclick = () => search(f.name);
-                
                 const imgId = `f-img-${f.id}`;
                 let initialSrc = 'https://placehold.co/100x100/333/FFF';
                 if (IMG_CACHE.has(f.id)) { initialSrc = IMG_CACHE.get(f.id); }
                 else if (f.avatarUrl && !f.avatarUrl.includes('placehold.co')) { initialSrc = f.avatarUrl; IMG_CACHE.set(f.id, f.avatarUrl); }
 
-                div.innerHTML = `
-                    ${statusBadge}
-                    <img id="${imgId}" src="${initialSrc}" class="w-full aspect-square bg-black mb-2 rounded-sm object-cover opacity-${isBanned?60:100}" data-uid="${f.id}">
-                    <div class="text-[10px] truncate text-gray-400 font-mono group-hover:text-white" title="${f.displayName || f.name} (@${f.name})">${f.name}</div>
-                `;
+                div.innerHTML = `${statusBadge}<img id="${imgId}" src="${initialSrc}" class="w-full aspect-square bg-black mb-2 rounded-sm object-cover opacity-${isBanned?60:100}" data-uid="${f.id}"><div class="text-[10px] truncate text-gray-400 font-mono group-hover:text-white" title="${f.displayName || f.name} (@${f.name})">${f.name}</div>`;
                 t.appendChild(div);
-                
-                // --- ERROR FIX START ---
-                if (!IMG_CACHE.has(f.id)) { 
-                    const url = await getAvatar(f.id, f.name); 
-                    const imgEl = document.getElementById(imgId); // Safety check
-                    if (imgEl) imgEl.src = url; 
-                }
-                // --- ERROR FIX END ---
+                if (!IMG_CACHE.has(f.id)) { const url = await getAvatar(f.id, f.name); const imgEl = document.getElementById(imgId); if (imgEl) imgEl.src = url; }
             });
             document.getElementById('friend-pager-indicator').textContent = `Pg ${fPage}/${Math.ceil(app.friends.length/fPer)}`;
             document.getElementById('f-prev').disabled = fPage === 1;
@@ -999,10 +854,7 @@
             try { 
                 await fetch(`${DATA_WORKER}/poi`, {method:'POST', headers:{'Content-Type':'application/json', 'Authorization': `Bearer ${app.token}`}, body:JSON.stringify({userId:app.profile.id, username:app.profile.name, displayName:app.profile.displayName, reason:r, markedBy:app.user.username, timestamp: new Date().toISOString(), avatarUrl: app.profile.avatarUrl})}); 
                 closeModals(); search(app.profile.id); 
-            } catch(e) {
-                console.error("POI Submit Failed:", e);
-                alert('Failed to mark POI'); 
-            }
+            } catch(e) { alert('Failed to mark POI'); }
             btn.textContent = "Confirm Designation"; btn.disabled = false;
         }
         document.getElementById('btn-poi-submit').onclick = submitPoi;
@@ -1012,10 +864,7 @@
             try { 
                 await fetch(`${DATA_WORKER}/poi/${app.profile.id}`, {method:'DELETE', headers:{'Authorization': `Bearer ${app.token}`}});
                 search(app.profile.id);
-            } catch(e) {
-                console.error("Unmark POI Failed:", e);
-                alert('Error unmarking'); 
-            }
+            } catch(e) { alert('Error unmarking'); }
         }
 
         let ringActionType = null;
@@ -1031,28 +880,11 @@
                     const r = await fetch(`${AUTH_WORKER}/rings`, {headers:{'Authorization':`Bearer ${app.token}`}});
                     const d = await r.json();
                     app.userRings = d.rings || [];
-                } catch(e) {
-                    console.error("Open Ring Modal Failed:", e);
-                    list.innerHTML = 'Error loading rings. Check console.'; 
-                    return; 
-                }
+                } catch(e) { list.innerHTML = 'Error loading rings. Check console.'; return; }
             }
             let displayRings = app.userRings;
-            if(type === 'remove') {
-                displayRings = app.userRings.filter(r => app.rings.some(ar => ar.id === r.id));
-            }
-            list.innerHTML = `
-                <button onclick="toggleModal('modal-ring-create'); closeModals();" class="w-full mb-2 p-2 border border-dashed border-[#333] text-gray-500 text-xs hover:border-white hover:text-white transition-colors rounded">+ Add New Ring</button>
-                ${displayRings.map(r => `
-                    <label class="flex items-center gap-3 p-3 bg-[#111] border border-[#222] rounded cursor-pointer hover:border-[#444]">
-                        <input type="radio" name="sel-ring" value="${r.id}" class="accent-white">
-                        <div>
-                            <div class="text-sm font-bold text-white">${r.name}</div>
-                            <div class="text-[10px] text-gray-500">${r.members?.length||0} members</div>
-                        </div>
-                    </label>
-                `).join('')}
-            `;
+            if(type === 'remove') { displayRings = app.userRings.filter(r => app.rings.some(ar => ar.id === r.id)); }
+            list.innerHTML = `<button onclick="toggleModal('modal-ring-create'); closeModals();" class="w-full mb-2 p-2 border border-dashed border-[#333] text-gray-500 text-xs hover:border-white hover:text-white transition-colors rounded">+ Add New Ring</button>${displayRings.map(r => `<label class="flex items-center gap-3 p-3 bg-[#111] border border-[#222] rounded cursor-pointer hover:border-[#444]"><input type="radio" name="sel-ring" value="${r.id}" class="accent-white"><div><div class="text-sm font-bold text-white">${r.name}</div><div class="text-[10px] text-gray-500">${r.members?.length||0} members</div></div></label>`).join('')}`;
         }
 
         document.getElementById('btn-ring-confirm').onclick = async () => {
@@ -1063,16 +895,9 @@
                 const method = ringActionType === 'add' ? 'POST' : 'DELETE';
                 const body = { members: [{userId:app.profile.id, username:app.profile.name}] };
                 if(ringActionType === 'remove') body.userIds = [app.profile.id];
-                await fetch(ep, {
-                    method: method,
-                    headers: {'Content-Type':'application/json', 'Authorization':`Bearer ${app.token}`},
-                    body: JSON.stringify(body)
-                });
+                await fetch(ep, { method: method, headers: {'Content-Type':'application/json', 'Authorization':`Bearer ${app.token}`}, body: JSON.stringify(body) });
                 closeModals(); search(app.profile.id);
-            } catch(e) {
-                console.error("Ring Confirm Action Failed:", e);
-                alert('Action failed. Check console.'); 
-            }
+            } catch(e) { alert('Action failed. Check console.'); }
         };
 
         document.getElementById('btn-ring-create-submit').onclick = async () => {
@@ -1081,29 +906,19 @@
             const add = document.getElementById('new-ring-auto-add').checked;
             if(!name) return;
             try {
-                await fetch(`${AUTH_WORKER}/rings`, {
-                    method: 'POST',
-                    headers: {'Content-Type':'application/json', 'Authorization':`Bearer ${app.token}`},
-                    body: JSON.stringify({
-                        name, description: desc,
-                        initialMembers: add ? [{userId:app.profile.id, username:app.profile.name}] : []
-                    })
-                });
+                await fetch(`${AUTH_WORKER}/rings`, { method: 'POST', headers: {'Content-Type':'application/json', 'Authorization':`Bearer ${app.token}`}, body: JSON.stringify({ name, description: desc, initialMembers: add ? [{userId:app.profile.id, username:app.profile.name}] : [] }) });
                 const r = await fetch(`${AUTH_WORKER}/rings`, {headers:{'Authorization':`Bearer ${app.token}`}});
                 const d = await r.json();
                 app.userRings = d.rings;
                 closeModals(); 
                 if(add) search(app.profile.id);
-            } catch(e) {
-                console.error("Ring Create Failed:", e);
-                alert('Create failed. Check console.'); 
-            }
+            } catch(e) { alert('Create failed. Check console.'); }
         }
 
         const MORSE_CODE = { '.-': 'A', '-...': 'B', '-.-.': 'C', '-..': 'D', '.': 'E', '..-.': 'F', '--.': 'G', '....': 'H', '..': 'I', '.---': 'J', '-.-': 'K', '.-..': 'L', '--': 'M', '-.': 'N', '---': 'O', '.--.': 'P', '--.-': 'Q', '.-.': 'R', '...': 'S', '-': 'T', '..-': 'U', '...-': 'V', '.--': 'W', '-..-': 'X', '-.--': 'Y', '--..': 'Z', '-----': '0', '.----': '1', '..---': '2', '...--': '3', '....-': '4', '.....': '5', '-....': '6', '--...': '7', '---..': '8', '----.': '9', '/': ' ', '-...-': '=', '.-.-.-': '.', '--..--': ',', '..--..': '?', '.----.': "'", '-.-.--': '!', '-..-.': '/', '-.--.': '(', '-.--.-': ')', '.-...': '&', '---...': ':', '-.-.-.': ';', '-....-': '-', '..--.-': '_', '.-..-.': '"', '...-..-': '$', '.--.-.': '@' };
         function decodeMorse(text) { return text.split('   ').map( word => word.split(' ').map( code => MORSE_CODE[code] || '' ).join('') ).join(' ').trim(); }
 
-        function calculateSafetyScore(profile, friends, rings, bannedFriends, rotector) {
+        function calculateSafetyScore(profile, friends, rings, bannedFriends, rotector, federatedBans) {
             let score = 50;
             let reasons = { positive: [], negative: [] };
             let decoded = null;
@@ -1131,6 +946,13 @@
             if(bannedFriends.length > 0) { const pen = Math.min(40, bannedFriends.length * 10); score -= pen; reasons.negative.push({text: `Linked to ${bannedFriends.length} banned user(s)`, weight: -pen, icon: "fa-users-slash"}); }
             if(rings && rings.length > 0) { score -= 50; reasons.negative.push({text: `Member of ${rings.length} Exploiter Ring(s)`, weight: -50, icon: "fa-link"}); }
             if(profile.isPOI) { score -= 50; reasons.negative.push({text: "Designated Person of Interest", weight: -50, icon: "fa-exclamation-triangle"}); }
+
+            // Federated Ban Penalties
+            if (federatedBans && federatedBans.length > 0) {
+                const fedPenalty = federatedBans.length * 40;
+                score -= fedPenalty;
+                reasons.negative.push({text: `Found in ${federatedBans.length} Federated Ban List(s)`, weight: -fedPenalty, icon: "fa-globe-americas"});
+            }
 
             if (rotector) {
                 if (rotector.flagType === 2) { score -= 60; reasons.negative.push({text: "Rotector AI: Unsafe", weight: -60, icon: "fa-robot"}); }
