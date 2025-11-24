@@ -1160,10 +1160,28 @@
             const rot13 = (s) => s.replace(/[a-z]/gi, c => String.fromCharCode((c<='Z'?90:122)>=(c=c.charCodeAt(0)+13)?c:c-26));
             
             if (text.includes('discord') || text.includes('cord') || text.includes('snap')) { score -= 20; reasons.negative.push({text: "Solicitation keywords detected", weight: -20, icon: "fa-comment-slash"}); }
-            if(!text.includes(' ') && text.length > 10) {
-                const dec = rot13(text);
-                if(dec.includes('game') || dec.includes('join') || dec.includes('discord')) { score -= 30; reasons.negative.push({text: "Obfuscated text detected (ROT13)", weight: -30, icon: "fa-user-secret"}); decoded = dec; }
+            
+            // --- UPDATED ROT13 DETECTION LOGIC ---
+            // Always attempt decode to check for hidden messages, regardless of spaces
+            const dec = rot13(text);
+            const badWords = ['game', 'join', 'discord', 'slut', 'cock', 'cum', 'fuck', 'nude', 'sex', 'dick', 'pussy', 'whore'];
+            const foundBadWord = badWords.some(w => dec.includes(w));
+            
+            // Check 1: Explicit keywords in decoded text (Aggressive check for hidden bios)
+            if (foundBadWord) {
+                score -= 60; 
+                reasons.negative.push({text: "Obfuscated/Explicit text detected (ROT13)", weight: -60, icon: "fa-user-secret"});
+                decoded = dec;
+            } 
+            // Check 2: The old single-word link obfuscation check (Legacy support)
+            else if (!text.includes(' ') && text.length > 10) {
+                 if(dec.includes('https') || dec.includes('.com') || dec.includes('roblox')) {
+                      score -= 30;
+                      reasons.negative.push({text: "Obfuscated Link detected", weight: -30, icon: "fa-link"});
+                      decoded = dec;
+                 }
             }
+
             if (/[.-]{1,5}(\s+[.-]{1,5})+/.test(profile.description)) {
                 const morseMatches = profile.description.match(/[.-]{1,5}(\s+[.-]{1,5})+/g);
                 if (morseMatches) {
