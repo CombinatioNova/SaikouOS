@@ -1157,31 +1157,67 @@
             let reasons = { positive: [], negative: [] };
             let decoded = null;
             const text = (profile.description || "").toLowerCase();
-            const rot13 = (s) => s.replace(/[a-z]/gi, c => String.fromCharCode((c<='Z'?90:122)>=(c=c.charCodeAt(0)+13)?c:c-26));
             
-            if (text.includes('discord') || text.includes('cord') || text.includes('snap')) { score -= 20; reasons.negative.push({text: "Solicitation keywords detected", weight: -20, icon: "fa-comment-slash"}); }
+            // --- 1. KEYWORD & EMOJI CHECKS ---
+            if (text.includes('discord') || text.includes('cord') || text.includes('snap') || text.includes('insta')) { 
+                score -= 20; 
+                reasons.negative.push({text: "Solicitation keywords detected", weight: -20, icon: "fa-comment-slash"}); 
+            }
+            // "See D" / CD emoji check for Discord
+            if (text.includes('💿') && (text.includes('find') || text.includes('add') || text.includes('me'))) {
+                score -= 20;
+                reasons.negative.push({text: "Symbolic solicitation (💿) detected", weight: -20, icon: "fa-icons"});
+            }
+            // MDNI Check (Minors Do Not Interact = NSFW acknowledgement)
+            if (text.includes('mdni')) { 
+                score -= 50; 
+                reasons.negative.push({text: "Restricted Interaction (MDNI) Marker", weight: -10, icon: "fa-ban"}); 
+            }
             
-            // --- UPDATED ROT13 DETECTION LOGIC ---
-            // Always attempt decode to check for hidden messages, regardless of spaces
-            const dec = rot13(text);
-            const badWords = ['game', 'join', 'discord', 'slut', 'cock', 'cum', 'fuck', 'nude', 'sex', 'dick', 'pussy', 'whore'];
-            const foundBadWord = badWords.some(w => dec.includes(w));
+            // --- 2. DECODER LOGIC (Caesar Brute Force 1-25) ---
+            // Expanded dictionary based on user report
+            const badWords = ['game', 'join', 'discord', 'slut', 'cock', 'cum', 'fuck', 'nude', 'sex', 'dick', 'pussy', 'whore', 'rape', 'snuff', 'piss', 'bondage', 'bdsm', 'gore', 'kill', 'shoot', 'hitman', 'murder', 'traffick'];
             
-            // Check 1: Explicit keywords in decoded text (Aggressive check for hidden bios)
-            if (foundBadWord) {
-                score -= 60; 
-                reasons.negative.push({text: "Obfuscated/Explicit text detected (ROT13)", weight: -60, icon: "fa-user-secret"});
-                decoded = dec;
-            } 
-            // Check 2: The old single-word link obfuscation check (Legacy support)
-            else if (!text.includes(' ') && text.length > 10) {
-                 if(dec.includes('https') || dec.includes('.com') || dec.includes('roblox')) {
+            const caesar = (str, shift) => {
+                return str.replace(/[a-zA-Z]/g, c => {
+                    const base = c < 'a' ? 65 : 97;
+                    return String.fromCharCode(((c.charCodeAt(0) - base + shift) % 26) + base);
+                });
+            };
+
+            // Check original text first
+            const foundBadWordOriginal = badWords.find(w => text.includes(w));
+            if(foundBadWordOriginal) {
+                 score -= 30;
+                 reasons.negative.push({text: `Explicit language: ${foundBadWordOriginal}`, weight: -30, icon: "fa-exclamation"});
+            }
+
+            // Check all 25 shifts (Handles ROT13, ROT19/Shift-7, etc)
+            for (let i = 1; i < 26; i++) {
+                const dec = caesar(profile.description || "", i).toLowerCase(); 
+                // We assume mixed content, so we search the whole decoded string for keywords
+                const found = badWords.find(w => dec.includes(w));
+                
+                if (found) {
+                    score -= 60;
+                    reasons.negative.push({text: `Encoded explicit text (ROT${i})`, weight: -60, icon: "fa-user-secret"});
+                    // Store the result of this specific shift
+                    decoded = `[ROT${i}]: ${dec}`; 
+                    break; // Stop after first match to prioritize the most likely cipher
+                }
+            }
+
+            // Legacy link obfuscation check (if not already caught by explicit filter)
+            if (!decoded && !text.includes(' ') && text.length > 10) {
+                 const dec13 = caesar(text, 13);
+                 if(dec13.includes('https') || dec13.includes('.com') || dec13.includes('roblox')) {
                       score -= 30;
                       reasons.negative.push({text: "Obfuscated Link detected", weight: -30, icon: "fa-link"});
-                      decoded = dec;
+                      decoded = dec13;
                  }
             }
 
+            // --- 3. MORSE CODE CHECK ---
             if (/[.-]{1,5}(\s+[.-]{1,5})+/.test(profile.description)) {
                 const morseMatches = profile.description.match(/[.-]{1,5}(\s+[.-]{1,5})+/g);
                 if (morseMatches) {
