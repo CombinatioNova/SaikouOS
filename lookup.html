@@ -1095,18 +1095,72 @@
             let reasons = { positive: [], negative: [] };
             let decoded = null;
             const text = (profile.description || "").toLowerCase();
-            const rot13 = (s) => s.replace(/[a-z]/gi, c => String.fromCharCode((c<='Z'?90:122)>=(c=c.charCodeAt(0)+13)?c:c-26));
             
+            // --- Threat Keywords Check (Standard) ---
             if (text.includes('discord') || text.includes('cord') || text.includes('snap')) { score -= 20; reasons.negative.push({text: "Solicitation keywords detected", weight: -20, icon: "fa-comment-slash"}); }
-            if(!text.includes(' ') && text.length > 10) {
-                const dec = rot13(text);
-                if(dec.includes('game') || dec.includes('join') || dec.includes('discord')) { score -= 30; reasons.negative.push({text: "Obfuscated text detected (ROT13)", weight: -30, icon: "fa-user-secret"}); decoded = dec; }
+            
+            // --- UPDATED: General Caesar Cipher / ROT Solver (Includes ROT13) ---
+            // Only runs if description is long enough to contain meaningful content (e.g., > 5 chars)
+            if (text.length > 5) {
+                const threatKeywords = ['discord', 'game', 'join', 'group', 'server', 'code', 'invite', 'https', 'hack', 'exploit', 'script', 'roblox', 'channel', 'link'];
+                
+                // Common English words (4+ chars) to detect benign ciphers
+                const commonEnglish = [
+                    'that', 'with', 'have', 'this', 'will', 'your', 'from', 'they', 'know', 'want', 'been', 'good', 'much', 'some', 'time', 'very', 'when', 'come', 'here', 'just', 'like', 'long', 'make', 'many', 'more', 'only', 'over', 'such', 'take', 'than', 'them', 'well', 'were',
+                    'about', 'after', 'again', 'below', 'could', 'every', 'first', 'found', 'great', 'house', 'large', 'learn', 'never', 'other', 'place', 'plant', 'point', 'right', 'small', 'sound', 'spell', 'still', 'study', 'their', 'there', 'these', 'thing', 'think', 'three', 'water', 'where', 'which', 'world', 'would', 'write'
+                ];
+                
+                const allTriggers = [...threatKeywords, ...commonEnglish];
+
+                // Helper: Shifts string by N
+                const shiftStr = (str, amount) => {
+                    return str.replace(/[a-zA-Z]/g, (char) => {
+                        const base = char <= 'Z' ? 65 : 97; // Handle case based on char (but input is lowercased text for safety, though replace might catch original casing if we passed original)
+                        // Note: 'text' variable is already .toLowerCase(), but let's use a robust method in case we change input later
+                        const code = char.toLowerCase().charCodeAt(0); 
+                        if (code < 97 || code > 122) return char;
+                        return String.fromCharCode(((code - 97 + amount) % 26) + 97);
+                    });
+                };
+
+                let bestShift = 0;
+                let foundSuspicious = false;
+                let bestDecoded = "";
+
+                // Try shifts 1 through 25
+                for (let s = 1; s < 26; s++) {
+                    const attempt = shiftStr(text, s);
+                    
+                    // Check if this shift reveals any keywords
+                    if (allTriggers.some(k => attempt.includes(k))) {
+                        foundSuspicious = true;
+                        bestShift = s;
+                        bestDecoded = attempt;
+                        break; // Stop at the first meaningful match
+                    }
+                }
+
+                if (foundSuspicious) {
+                    score -= 30; 
+                    reasons.negative.push({text: `Obfuscated text detected (ROT${bestShift})`, weight: -30, icon: "fa-user-secret"}); 
+                    // Show full decoded text
+                    decoded = `[ROT${bestShift}]: ${bestDecoded}`; 
+                }
             }
+
+            // --- Morse Code Check ---
             if (/[.-]{1,5}(\s+[.-]{1,5})+/.test(profile.description)) {
                 const morseMatches = profile.description.match(/[.-]{1,5}(\s+[.-]{1,5})+/g);
                 if (morseMatches) {
                     const decodedMorse = morseMatches.map(m => decodeMorse(m)).join(' ');
-                    if (decodedMorse.length > 3) { score -= 30; reasons.negative.push({text: "Morse Code Detected", weight: -30, icon: "fa-code"}); decoded = `[MORSE]: ${decodedMorse}`; }
+                    // Filter out noise: only flag if it decodes to actual letters/numbers length > 3
+                    if (decodedMorse.replace(/[^A-Z0-9]/g, '').length > 3) { 
+                        score -= 30; 
+                        reasons.negative.push({text: "Morse Code Detected", weight: -30, icon: "fa-code"}); 
+                        // If we already have a decoded message (from ROT), append this one
+                        if (decoded) decoded += ` | [MORSE]: ${decodedMorse}`;
+                        else decoded = `[MORSE]: ${decodedMorse}`;
+                    }
                 }
             }
 
