@@ -501,16 +501,18 @@
         // --- Configuration ---
         const AUTH_WORKER = 'https://sdis-authenticator.saikoudevelopment.workers.dev';
 
-        // Added color gradients back to the apps configuration
+        // UPDATED: Refactored icons to include full classes (fa-solid vs fa-brands)
+        // Added 'DisLookup'
         const ALL_APPS = [
-            { id: 'netvis', title: 'Network Visualizer', icon: 'fa-share-nodes', color: 'from-blue-600 to-cyan-500', restricted: false, url: 'netvis.html', width: 1000, height: 700 },
-            { id: 'lookup', title: 'Player Lookup', icon: 'fa-magnifying-glass', color: 'from-purple-600 to-pink-500', restricted: false, url: 'lookup.html', width: 900, height: 800 },
-            { id: 'panel', title: 'User Panel', icon: 'fa-users-gear', color: 'from-emerald-500 to-green-500', restricted: false, url: 'panel.html', width: 800, height: 600 },
-            { id: 'sdis', title: 'SDIS Admin', icon: 'fa-shield-halved', color: 'from-red-600 to-orange-600', restricted: true, url: 'sdis.html', width: 1100, height: 750 },
-            { id: 'rings', title: 'Ring Manager', icon: 'fa-link', color: 'from-rose-500 to-red-500', restricted: true, url: 'sdis-rings.html', width: 1000, height: 700 },
-            { id: 'timestamp', title: 'Time Gen', icon: 'fa-clock', color: 'from-yellow-500 to-orange-500', restricted: false, url: 'timestamp.html', width: 500, height: 600 },
-            { id: 'scheduler', title: 'Scheduler', icon: 'fa-calendar-days', color: 'from-indigo-500 to-blue-500', restricted: true, url: 'scheduler.html', width: 800, height: 700 },
-            { id: 'docusend', title: 'File Sender', icon: 'fa-paper-plane', color: 'from-gray-600 to-gray-800', restricted: true, url: 'docusend.html', width: 600, height: 500 }
+            { id: 'netvis', title: 'Network Visualizer', icon: 'fa-solid fa-share-nodes', color: 'from-blue-600 to-cyan-500', restricted: false, url: 'netvis.html', width: 1000, height: 700 },
+            { id: 'lookup', title: 'Player Lookup', icon: 'fa-solid fa-magnifying-glass', color: 'from-purple-600 to-pink-500', restricted: false, url: 'lookup.html', width: 900, height: 800 },
+            { id: 'dislookup', title: 'DisLookup', icon: 'fa-brands fa-discord', color: 'from-indigo-500 to-purple-600', restricted: false, url: 'dislookup.html', width: 850, height: 700 }, // NEW APP
+            { id: 'panel', title: 'User Panel', icon: 'fa-solid fa-users-gear', color: 'from-emerald-500 to-green-500', restricted: false, url: 'panel.html', width: 800, height: 600 },
+            { id: 'sdis', title: 'SDIS Admin', icon: 'fa-solid fa-shield-halved', color: 'from-red-600 to-orange-600', restricted: true, url: 'sdis.html', width: 1100, height: 750 },
+            { id: 'rings', title: 'Ring Manager', icon: 'fa-solid fa-link', color: 'from-rose-500 to-red-500', restricted: true, url: 'sdis-rings.html', width: 1000, height: 700 },
+            { id: 'timestamp', title: 'Time Gen', icon: 'fa-solid fa-clock', color: 'from-yellow-500 to-orange-500', restricted: false, url: 'timestamp.html', width: 500, height: 600 },
+            { id: 'scheduler', title: 'Scheduler', icon: 'fa-solid fa-calendar-days', color: 'from-indigo-500 to-blue-500', restricted: true, url: 'scheduler.html', width: 800, height: 700 },
+            { id: 'docusend', title: 'File Sender', icon: 'fa-solid fa-paper-plane', color: 'from-gray-600 to-gray-800', restricted: true, url: 'docusend.html', width: 600, height: 500 }
         ];
 
         // --- State ---
@@ -668,7 +670,7 @@
             desktop.innerHTML = availableApps.map(app => `
                 <div class="app-icon" onclick="window.openApp('${app.id}')">
                     <div class="icon-box bg-gradient-to-br ${app.color}">
-                        <i class="fa-solid ${app.icon}"></i>
+                        <i class="${app.icon}"></i>
                     </div>
                     <span class="app-label">${app.title}</span>
                 </div>
@@ -680,7 +682,7 @@
             grid.innerHTML = availableApps.map(app => `
                 <div class="menu-item" onclick="window.openApp('${app.id}'); document.getElementById('start-menu').classList.remove('open'); document.getElementById('start-btn').classList.remove('active');">
                     <div class="w-8 h-8 rounded bg-gradient-to-br ${app.color} flex items-center justify-center mb-1">
-                         <i class="fa-solid ${app.icon} text-white text-xs"></i>
+                         <i class="${app.icon} text-white text-xs"></i>
                     </div>
                     <span>${app.title}</span>
                 </div>
@@ -729,7 +731,7 @@
             win.innerHTML = `
                 <div class="window-header" onmousedown="startDrag(event, '${id}')">
                     <div class="window-title">
-                        <i class="fa-solid ${app.icon} text-gray-500"></i>
+                        <i class="${app.icon} text-gray-500"></i>
                         <span>${app.title}</span>
                     </div>
                     <div class="window-controls">
@@ -903,7 +905,7 @@
                     window.focusWindow(app.id);
                 }
             };
-            item.innerHTML = `<i class="fa-solid ${app.icon} task-icon text-gray-400"></i><span class="task-title">${app.title}</span>`;
+            item.innerHTML = `<i class="${app.icon} task-icon text-gray-400"></i><span class="task-title">${app.title}</span>`;
             container.appendChild(item);
         }
 
