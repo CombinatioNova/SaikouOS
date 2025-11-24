@@ -113,7 +113,7 @@
         #graph-svg:active { cursor: grabbing; }
 
         /* Node Styles */
-        .node { cursor: pointer; transition: opacity 0.3s ease; }
+        .node { cursor: pointer; transition: opacity 0.2s ease; }
         
         /* Default (Normal) Node Outline */
         .node .node-outline {
@@ -129,17 +129,36 @@
         /* Special Node Types */
         .node.seed-user .node-outline { stroke: var(--accent-purple); stroke-width: 2px; }
         
-        /* Banned Pop Animation */
+        /* Banned Pop Animation - FASTER (1s) */
         @keyframes pulse-danger {
             0% { stroke: #ef4444; stroke-width: 2px; filter: drop-shadow(0 0 0 rgba(239, 68, 68, 0)); }
             50% { stroke: #ef4444; stroke-width: 3px; filter: drop-shadow(0 0 10px rgba(239, 68, 68, 0.6)); }
             100% { stroke: #ef4444; stroke-width: 2px; filter: drop-shadow(0 0 0 rgba(239, 68, 68, 0)); }
         }
-        .node.banned .node-outline { animation: pulse-danger 2s infinite; }
+        .node.banned .node-outline { animation: pulse-danger 1s infinite; }
 
         /* Links */
-        .link { stroke: #333; stroke-opacity: 0.6; stroke-width: 1.5px; }
+        .link { stroke: #333; stroke-opacity: 0.6; stroke-width: 1.5px; transition: stroke-opacity 0.2s; }
         .link.ring { stroke: #ef4444 !important; stroke-opacity: 0.8 !important; stroke-width: 2px; stroke-dasharray: 4, 4; }
+
+        /* Tooltip */
+        #graph-tooltip {
+            position: absolute;
+            background: rgba(0, 0, 0, 0.9);
+            border: 1px solid #333;
+            color: white;
+            padding: 6px 10px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-family: 'Inter', sans-serif;
+            pointer-events: none;
+            z-index: 60;
+            opacity: 0;
+            transition: opacity 0.1s;
+            transform: translate(10px, 10px); /* Offset from cursor */
+            white-space: nowrap;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        }
 
         /* --- Overlays --- */
         .overlay-panel {
@@ -167,13 +186,13 @@
         }
         #node-detail-card.active { transform: translateX(0); }
 
-        /* Loading Scan Animation */
+        /* Loading Scan Animation - REDUCED TO 1s */
         @keyframes scan-line {
             0% { transform: translateX(-100%); }
             100% { transform: translateX(100%); }
         }
         .scan-anim {
-            animation: scan-line 1.5s infinite linear;
+            animation: scan-line 1s infinite linear;
         }
 
         /* Tags & Utils */
@@ -222,6 +241,7 @@
 
     <!-- Main Workspace -->
     <div class="graph-wrapper">
+        <div id="graph-tooltip"></div>
         <svg id="graph-svg"></svg>
         
         <!-- Global Loading Overlay -->
@@ -690,8 +710,38 @@
                 .attr("id", d => `node-${d.id}`)
                 .attr("class", d => `node ${d.isBanned ? 'banned' : ''} ${state.seeds.has(d.name) ? 'seed-user' : ''}`)
                 .call(d3.drag().on("start", dragStart).on("drag", dragging).on("end", dragEnd));
-                // REMOVED 'click' listener to prevent conflict with dragEnd. 
-                // Reliability is improved by handling click-like behavior inside dragEnd.
+            
+            // Hover Interaction Logic (Highlighting & Tooltip)
+            nodeGroup.on("mouseover", function(event, d) {
+                // 1. Identify Connected Nodes
+                const connectedIds = new Set();
+                connectedIds.add(d.id);
+                data.links.forEach(l => {
+                    if (l.source.id === d.id) connectedIds.add(l.target.id);
+                    if (l.target.id === d.id) connectedIds.add(l.source.id);
+                });
+
+                // 2. Dim unconnected nodes
+                svg.selectAll(".node").style("opacity", n => connectedIds.has(n.id) ? 1 : 0.1);
+                svg.selectAll(".link").style("stroke-opacity", l => (l.source.id === d.id || l.target.id === d.id) ? 1 : 0.05);
+
+                // 3. Show Tooltip
+                const tooltip = d3.select("#graph-tooltip");
+                tooltip.style("opacity", 1)
+                       .html(`<strong>${d.displayName || d.name}</strong><br/><span style="color:#aaa;font-size:9px">ID: ${d.id}</span>`)
+                       .style("left", (event.pageX + 10) + "px")
+                       .style("top", (event.pageY - 10) + "px");
+
+            }).on("mousemove", function(event) {
+                d3.select("#graph-tooltip")
+                    .style("left", (event.pageX + 10) + "px")
+                    .style("top", (event.pageY + 10) + "px");
+            }).on("mouseout", function() {
+                // Reset
+                svg.selectAll(".node").style("opacity", 1);
+                svg.selectAll(".link").style("stroke-opacity", 0.6);
+                d3.select("#graph-tooltip").style("opacity", 0);
+            });
 
             // 1. Background
             nodeGroup.append("circle").attr("class", "node-background").attr("r", 15); 
