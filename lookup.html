@@ -20,6 +20,7 @@
             --text-muted: #888888;
             --accent-red: #ef4444;
             --accent-blue: #3b82f6;
+            --accent-discord: #5865F2;
         }
 
         body {
@@ -63,6 +64,7 @@
         .log-entry.info { color: #9ca3af; }
         .log-entry.error { color: #ef4444; }
         .log-entry.warn { color: #f59e0b; }
+        .log-entry.system { color: var(--accent-discord); font-weight: bold; }
 
         /* Risk Bar */
         .risk-bar-fill { height: 100%; transition: width 1s ease; }
@@ -226,19 +228,16 @@
         const AUTH_WORKER = 'https://sdis-authenticator.saikoudevelopment.workers.dev';
         const DATA_WORKER = 'https://saikou-ban-proxy.saikoudevelopment.workers.dev';
         const ROTECTOR_API = 'https://roscoe.robalyx.com/v1/lookup/roblox/user';
-        const JUSTICE_PROXY = 'https://justice.saikoudevelopment.workers.dev'; // CLANWARE JUSTICE PROXY
+        const JUSTICE_PROXY = 'https://justice.saikoudevelopment.workers.dev'; 
+        const TASE_WORKER = 'https://tase.saikoudevelopment.workers.dev'; // NEW: TASE Worker for Discord
         
         // --- CONFIG: OOFD & EXTERNAL LISTS ---
         const OOFD_API_URL = 'https://oofd.net/api/ban/status/';
         
-        // Supports JSON Arrays OR Raw Text Files (e.g., GitHub Gists)
-        const EXTERNAL_DATABASES = [
-            // Example: { name: "Synapse Dump", url: "https://gist.githubusercontent.com/.../raw/...", proxy: true }
-        ];
-
-        const LOCAL_THREAT_IDS = ["1"]; // Example
-        const SAIKOU_GROUP_ID = "3149674"; // Saikou Group
-        const SDIS_GROUP_ID = "549702194"; // SDIS Group
+        const EXTERNAL_DATABASES = [];
+        const LOCAL_THREAT_IDS = ["1"]; 
+        const SAIKOU_GROUP_ID = "3149674"; 
+        const SDIS_GROUP_ID = "549702194"; 
 
         let app = { 
             user: null, 
@@ -251,6 +250,7 @@
             rotector: null, 
             federatedBans: [], 
             userRings: [],
+            discordData: null, // NEW: Store Discord Intelligence
             friendSafety: new Map(),
             friendStats: { unsafe: 0, flagged: 0, scanned: 0, total: 0, errors: 0 }
         };
@@ -388,10 +388,9 @@
             }
         }
 
-        // --- CLANWARE JUSTICE CHECK (Updated for Extra Details) ---
+        // --- CLANWARE JUSTICE CHECK ---
         async function checkClanwareJustice(userId) {
             const hits = [];
-            // We check both Exploiters and Degenerates endpoints via our proxy
             const checks = [
                 { endpoint: '/api/justice/exploiters', type: 'EXPLOIT', label: 'Clanware Justice (Exploiter)' },
                 { endpoint: '/api/justice/degenerates', type: 'CONDUCT', label: 'Clanware Justice (Degenerate)' }
@@ -407,7 +406,6 @@
                     
                     if (r.ok) {
                         const data = await r.json();
-                        // API returns an array of case objects if found
                         if (Array.isArray(data) && data.length > 0) {
                             data.forEach(item => {
                                 hits.push({
@@ -415,8 +413,8 @@
                                     reason: `Case #${item.case_id} (${item.status})`,
                                     date: item.date_created || new Date().toISOString(),
                                     isExploit: check.type === 'EXPLOIT',
-                                    isJustice: true, // Tag for specific weighting
-                                    details: item // Store FULL object for rendering
+                                    isJustice: true, 
+                                    details: item 
                                 });
                             });
                         }
@@ -428,24 +426,55 @@
             return hits;
         }
 
+        // --- DISCORD INTELLIGENCE CHECK (TASE) ---
+        async function fetchDiscordIntelligence(discordId) {
+            log(`Parsing TASE Intelligence for Discord ID: ${discordId}...`, 'system');
+            try {
+                // Parallel fetch for speed
+                const [profileReq, taseReq] = await Promise.all([
+                    fetch(`${TASE_WORKER}/discord/v10/users/${discordId}`),
+                    fetch(`${TASE_WORKER}/api/v1/check/${discordId}`)
+                ]);
+
+                const profile = profileReq.ok ? await profileReq.json() : null;
+                const tase = taseReq.ok ? await taseReq.json() : { scoreSum: 0, guilds: [] };
+                
+                return { profile, tase };
+            } catch (e) { 
+                log('Discord Intelligence Trace Failed.', 'error');
+                return null; 
+            }
+        }
+
+        function calculateDiscordRisk(tase) {
+            let score = tase.scoreSum || 0;
+            let rating = "Safe";
+            let color = "text-green-500";
+            let barColor = "bg-green-500";
+            let rBorder = "border-green-600";
+            
+            if (score > 100) score = 100;
+            if (score > 50) {
+                rating = "CRITICAL"; color = "text-red-500"; barColor = "bg-red-600"; rBorder = "border-red-600";
+            } else if (score > 10) {
+                rating = "SUSPICIOUS"; color = "text-yellow-500"; barColor = "bg-yellow-500"; rBorder = "border-yellow-500";
+            } else if (score > 0) {
+                rating = "LOW RISK"; color = "text-orange-400"; barColor = "bg-orange-400"; rBorder = "border-orange-400";
+            }
+            return { score, rating, color, barColor, rBorder };
+        }
+
         // --- General Federated Check ---
         async function checkFederatedBans(userId) {
             let hits = [];
-
-            // 1. Local Check
             if (LOCAL_THREAT_IDS.includes(String(userId))) {
                 hits.push({ source: "Local Threat List", reason: "Manually Flagged by Operator", date: new Date().toISOString() });
             }
-
-            // 2. OOFD Check
             const oofdBans = await checkOOFD(userId);
             hits = [...hits, ...oofdBans];
-
-            // 3. NEW Clanware Justice Check
             const justiceBans = await checkClanwareJustice(userId);
             hits = [...hits, ...justiceBans];
 
-            // 4. Other External DBs
             for (const db of EXTERNAL_DATABASES) {
                 if (db.url) {
                     try {
@@ -467,61 +496,35 @@
         // --- Copy Link Function ---
         function copyProfileLink(btn, userId) {
             const url = `${window.location.origin}${window.location.pathname}?lookup=${userId}`;
-            
-            // Robust copy function for cross-browser/iframe compatibility
             const textArea = document.createElement("textarea");
             textArea.value = url;
-            textArea.style.position = "fixed"; // Avoid scrolling to bottom
+            textArea.style.position = "fixed"; 
             document.body.appendChild(textArea);
             textArea.focus();
             textArea.select();
-            
             try {
                 const successful = document.execCommand('copy');
                 if(!successful) throw new Error("execCommand failed");
             } catch (err) {
-                // Fallback for modern browsers that might block execCommand but allow API
                 navigator.clipboard.writeText(url).catch(e => console.error("Clipboard failed", e));
             }
             document.body.removeChild(textArea);
-
-            // Visual Feedback
             const originalContent = btn.innerHTML;
             btn.innerHTML = `<i class="fas fa-check mr-2 w-4 text-center text-green-500"></i> <span class="text-green-500 font-bold">Copied!</span>`;
-            
-            setTimeout(() => {
-                btn.innerHTML = originalContent;
-            }, 2000);
+            setTimeout(() => { btn.innerHTML = originalContent; }, 2000);
         }
 
         // --- Helper: Saikou Rank Styler ---
         function getSaikouRankStyle(role) {
             const r = role.toLowerCase();
-            // Returns: { text, border, bg, icon, shadow, ring }
-            if (r.includes('lead developer')) return { 
-                text: 'text-fuchsia-400', border: 'border-fuchsia-500/50', bg: 'bg-fuchsia-950/30', icon: 'fa-code', shadow: 'shadow-fuchsia-500/20', glow: 'shadow-[0_0_20px_rgba(232,121,249,0.15)]' 
-            };
-            if (r.includes('community manager')) return { 
-                text: 'text-emerald-400', border: 'border-emerald-500/50', bg: 'bg-emerald-950/30', icon: 'fa-bullhorn', shadow: 'shadow-emerald-500/20', glow: 'shadow-[0_0_20px_rgba(52,211,153,0.15)]' 
-            };
-            if (r.includes('head moderator')) return { 
-                text: 'text-red-500', border: 'border-red-500/50', bg: 'bg-red-950/30', icon: 'fa-gavel', shadow: 'shadow-red-500/20', glow: 'shadow-[0_0_20px_rgba(239,68,68,0.15)]' 
-            };
-            if (r.includes('senior moderator')) return { 
-                text: 'text-orange-400', border: 'border-orange-500/50', bg: 'bg-orange-950/30', icon: 'fa-shield-alt', shadow: 'shadow-orange-500/20', glow: 'shadow-[0_0_20px_rgba(251,146,60,0.15)]' 
-            };
-            if (r.includes('moderator')) return { 
-                text: 'text-blue-400', border: 'border-blue-500/50', bg: 'bg-blue-950/30', icon: 'fa-shield-alt', shadow: 'shadow-blue-500/20', glow: 'shadow-[0_0_20px_rgba(96,165,250,0.15)]' 
-            };
-            if (r.includes('trial moderator')) return { 
-                text: 'text-cyan-400', border: 'border-cyan-500/50', bg: 'bg-cyan-950/30', icon: 'fa-graduation-cap', shadow: 'shadow-cyan-500/20', glow: 'shadow-[0_0_20px_rgba(34,211,238,0.15)]' 
-            };
-            if (r.includes('contractor')) return { 
-                text: 'text-yellow-400', border: 'border-yellow-500/50', bg: 'bg-yellow-950/30', icon: 'fa-file-contract', shadow: 'shadow-yellow-500/20', glow: 'shadow-[0_0_20px_rgba(250,204,21,0.15)]' 
-            };
-            return { 
-                text: 'text-gray-400', border: 'border-gray-600', bg: 'bg-[#111]', icon: 'fa-user', shadow: 'shadow-gray-500/20', glow: 'shadow-none' 
-            };
+            if (r.includes('lead developer')) return { text: 'text-fuchsia-400', border: 'border-fuchsia-500/50', bg: 'bg-fuchsia-950/30', icon: 'fa-code', shadow: 'shadow-fuchsia-500/20', glow: 'shadow-[0_0_20px_rgba(232,121,249,0.15)]' };
+            if (r.includes('community manager')) return { text: 'text-emerald-400', border: 'border-emerald-500/50', bg: 'bg-emerald-950/30', icon: 'fa-bullhorn', shadow: 'shadow-emerald-500/20', glow: 'shadow-[0_0_20px_rgba(52,211,153,0.15)]' };
+            if (r.includes('head moderator')) return { text: 'text-red-500', border: 'border-red-500/50', bg: 'bg-red-950/30', icon: 'fa-gavel', shadow: 'shadow-red-500/20', glow: 'shadow-[0_0_20px_rgba(239,68,68,0.15)]' };
+            if (r.includes('senior moderator')) return { text: 'text-orange-400', border: 'border-orange-500/50', bg: 'bg-orange-950/30', icon: 'fa-shield-alt', shadow: 'shadow-orange-500/20', glow: 'shadow-[0_0_20px_rgba(251,146,60,0.15)]' };
+            if (r.includes('moderator')) return { text: 'text-blue-400', border: 'border-blue-500/50', bg: 'bg-blue-950/30', icon: 'fa-shield-alt', shadow: 'shadow-blue-500/20', glow: 'shadow-[0_0_20px_rgba(96,165,250,0.15)]' };
+            if (r.includes('trial moderator')) return { text: 'text-cyan-400', border: 'border-cyan-500/50', bg: 'bg-cyan-950/30', icon: 'fa-graduation-cap', shadow: 'shadow-cyan-500/20', glow: 'shadow-[0_0_20px_rgba(34,211,238,0.15)]' };
+            if (r.includes('contractor')) return { text: 'text-yellow-400', border: 'border-yellow-500/50', bg: 'bg-yellow-950/30', icon: 'fa-file-contract', shadow: 'shadow-yellow-500/20', glow: 'shadow-[0_0_20px_rgba(250,204,21,0.15)]' };
+            return { text: 'text-gray-400', border: 'border-gray-600', bg: 'bg-[#111]', icon: 'fa-user', shadow: 'shadow-gray-500/20', glow: 'shadow-none' };
         }
 
         // --- Core Search Logic ---
@@ -538,6 +541,7 @@
             
             app.rotector = null;
             app.federatedBans = [];
+            app.discordData = null; // Reset Discord data
             app.friendSafety.clear();
             app.friendStats = { unsafe: 0, flagged: 0, scanned: 0, total: 0, errors: 0 };
 
@@ -561,24 +565,20 @@
                 app.friendStats.total = app.friends.length;
                 app.rings = d.ringIndicators || d.rings || [];
                 
-                // --- FEDERATED LISTS CHECK (Includes OOFD & JUSTICE) ---
+                // --- FEDERATED LISTS CHECK ---
                 if (app.profile.id) {
                     log(`Querying Federated Ban Lists (OOFD, Justice, External)...`);
                     const fedBans = await checkFederatedBans(app.profile.id);
                     if (fedBans.length > 0) {
                         app.federatedBans = fedBans;
                         log(`MATCH FOUND: Subject listed in ${fedBans.length} database(s).`, 'error');
-                        
-                        // Special log for Justice hits
-                        if(fedBans.some(b => b.isJustice)) {
-                            log(`Clanware Justice Record Found.`, 'error');
-                        }
+                        if(fedBans.some(b => b.isJustice)) log(`Clanware Justice Record Found.`, 'error');
                     } else {
                         log(`Federated lists: Clean.`, 'success');
                     }
                 }
 
-                // --- ROTECTOR ---
+                // --- ROTECTOR & DISCORD CHECK ---
                 if (app.profile.id) {
                     try {
                         log(`Querying Rotector AI Safety Matrix...`);
@@ -590,9 +590,31 @@
                                 const flagType = app.rotector.flagType;
                                 const logType = flagType === 2 ? "error" : flagType === 0 ? "success" : "warn";
                                 log(`Rotector AI Analysis: ${flagType === 2 ? "UNSAFE" : flagType === 0 ? "SAFE" : "PENDING"}`, logType);
+
+                                // --- PARSE DISCORD ID FROM EVIDENCE ---
+                                let foundDiscordId = null;
+                                if (app.rotector.reasons) {
+                                    Object.values(app.rotector.reasons).forEach(reason => {
+                                        if (reason.evidence && Array.isArray(reason.evidence)) {
+                                            reason.evidence.forEach(ev => {
+                                                // Matches "Discord User ID: 12345"
+                                                const match = ev.match(/Discord User ID:\s*(\d+)/i);
+                                                if (match) foundDiscordId = match[1];
+                                            });
+                                        }
+                                    });
+                                }
+
+                                if (foundDiscordId) {
+                                    log(`EXTRACTED DISCORD ID: ${foundDiscordId}`, 'system');
+                                    app.discordData = await fetchDiscordIntelligence(foundDiscordId);
+                                    if(app.discordData && app.discordData.profile) {
+                                        log(`Discord profile linked via TASE.`, 'success');
+                                    }
+                                }
                             }
                         }
-                    } catch(e) { log(`Rotector AI connection timed out.`, 'warn'); }
+                    } catch(e) { log(`Rotector/Discord AI connection timed out.`, 'warn'); }
                 }
 
                 // --- SAIKOU CHECK (Instant) ---
@@ -710,11 +732,7 @@
                 const style = getSaikouRankStyle(saikouData.role);
                 saikouBadgeHTML = `
                     <div class="mt-4 p-4 rounded-lg border ${style.border} ${style.bg} ${style.glow} relative overflow-hidden group transition-all duration-300 hover:scale-[1.02]">
-                        <!-- Background Watermark -->
-                        <div class="absolute -right-2 -bottom-4 text-9xl opacity-5 pointer-events-none select-none">
-                            <i class="fas ${style.icon} ${style.text}"></i>
-                        </div>
-                        
+                        <div class="absolute -right-2 -bottom-4 text-9xl opacity-5 pointer-events-none select-none"><i class="fas ${style.icon} ${style.text}"></i></div>
                         <div class="flex items-center gap-4 relative z-10">
                             <div class="w-10 h-10 rounded-full ${style.bg} border ${style.border} flex items-center justify-center shadow-lg relative overflow-hidden">
                                  <div class="absolute inset-0 ${style.bg} animate-pulse opacity-50"></div>
@@ -729,9 +747,7 @@
                 `;
             }
             
-            // SDIS Check
             const sdisData = app.groups.find(g => String(g.id) === SDIS_GROUP_ID);
-            // UPDATED BADGE: Shorter, No Icon, Bold Montserrat, Curvier
             const sdisNameBadge = sdisData ? `<span class="ml-2 inline-flex items-center justify-center px-2 py-[1px] rounded-md bg-slate-900 border border-slate-600 text-slate-300 text-[10px] font-['Montserrat'] font-bold tracking-wider shadow-[0_0_10px_rgba(71,85,105,0.3)] align-middle" title="SDIS Agent // Verified">SDIS</span>` : '';
 
             let banHistory = data.banHistory || [];
@@ -741,7 +757,7 @@
                     type: fb.isExploit ? "EXPLOIT" : fb.isJustice ? "JUSTICE" : "EXTERNAL",
                     Date: fb.date,
                     Moderator: fb.source,
-                    details: fb.details // Pass rich details through
+                    details: fb.details 
                 }));
                 banHistory = [...fedBanRecords, ...banHistory];
             }
@@ -750,16 +766,53 @@
             if(risk.rating === 'Unsafe') { rColor = "text-red-500"; rBorder = "border-red-600"; }
             else if(risk.rating === 'Caution') { rColor = "text-yellow-500"; rBorder = "border-yellow-500"; }
 
-            const getRoleStyle = (role) => {
-                switch(role) {
-                    case 'Leader': return 'bg-red-500 text-white border-red-400';
-                    case 'Figurehead': return 'bg-purple-500 text-white border-purple-400';
-                    case 'Alt': return 'bg-yellow-500 text-black border-yellow-400';
-                    case 'Smurf': return 'bg-blue-500 text-white border-blue-400';
-                    case 'Associate': return 'bg-green-500 text-white border-green-400';
-                    default: return 'bg-gray-600 text-white border-gray-500'; 
-                }
-            };
+            // --- Discord Panel Logic ---
+            let discordPanel = '';
+            if (app.discordData && app.discordData.profile) {
+                const dp = app.discordData.profile;
+                const dt = app.discordData.tase || { scoreSum: 0, guilds: [] };
+                const drisk = calculateDiscordRisk(dt);
+                const avatar = dp.avatar ? `https://cdn.discordapp.com/avatars/${dp.id}/${dp.avatar}.png?size=64` : `https://cdn.discordapp.com/embed/avatars/0.png`;
+                
+                discordPanel = `
+                    <div class="min-panel p-5 border-l-2 ${drisk.rBorder} bg-[#0e0e11] mt-6">
+                         <div class="flex justify-between items-center mb-4 border-b border-[#222] pb-2">
+                             <div class="flex items-center gap-2">
+                                 <i class="fab fa-discord text-[#5865F2] text-lg"></i>
+                                 <h3 class="text-sm font-bold text-white uppercase">Discord Intelligence</h3>
+                             </div>
+                             <span class="text-xs font-mono px-2 py-0.5 rounded bg-[#111] border border-[#333] ${drisk.color}">${drisk.rating}</span>
+                         </div>
+                         
+                         <div class="flex items-center gap-4 mb-4">
+                             <img src="${avatar}" class="w-12 h-12 rounded-full border-2 border-[#222]">
+                             <div>
+                                 <div class="text-white font-bold text-sm">${dp.global_name || dp.username}</div>
+                                 <div class="text-xs text-gray-500 font-mono">ID: ${dp.id}</div>
+                             </div>
+                             <div class="ml-auto text-right">
+                                 <div class="text-xl font-black ${drisk.color}">${dt.scoreSum}</div>
+                                 <div class="text-[9px] text-gray-600 uppercase">Reputation</div>
+                             </div>
+                         </div>
+
+                         ${dt.guilds && dt.guilds.length > 0 ? `
+                             <div class="text-[10px] uppercase text-gray-500 font-bold mb-2">Detected Connections</div>
+                             <div class="space-y-1 max-h-32 overflow-y-auto custom-scroll pr-1">
+                                 ${dt.guilds.map(g => `
+                                     <div class="flex justify-between items-center p-2 bg-[#18181b] rounded border border-[#222]">
+                                         <div class="truncate text-xs text-gray-300 pr-2">${g.name}</div>
+                                         <div class="flex items-center gap-1">
+                                             ${g.isStaff ? '<span class="text-[9px] text-red-400 bg-red-900/20 px-1 rounded font-bold">STAFF</span>' : ''}
+                                             <span class="text-[9px] font-mono text-red-500 font-bold">+${g.score}</span>
+                                         </div>
+                                     </div>
+                                 `).join('')}
+                             </div>
+                         ` : '<div class="text-xs text-green-500 italic"><i class="fas fa-check-circle mr-1"></i> No adverse server connections found.</div>'}
+                    </div>
+                `;
+            }
 
             container.innerHTML = `
                 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -846,21 +899,17 @@
                                             </div>
                                             <div class="text-gray-500 mt-1 flex justify-between"><span>${new Date(b.Date).toLocaleDateString()}</span><span>By: ${b.Moderator}</span></div>
                                             
-                                            <!-- RICHER DETAILS FOR CLANWARE JUSTICE -->
                                             ${b.details ? `
                                                 <div class="mt-2 pt-2 border-t border-[#333] space-y-2">
                                                     ${b.details.strike ? `<div class="text-yellow-500 font-mono flex items-center gap-1"><i class="fas fa-bolt text-[10px]"></i> Strike ${b.details.strike}</div>` : ''}
-                                                    
                                                     ${b.details.evidence && b.details.evidence.length > 0 ? `
                                                         <div class="flex flex-wrap gap-1">
                                                             ${b.details.evidence.map((ev, i) => {
-                                                                // Use archive.clanware.org link if evidence is a UUID
                                                                 const link = ev.startsWith('http') ? ev : `https://archive.clanware.org/?uuid=${ev}`;
                                                                 return `<a href="${link}" target="_blank" class="px-2 py-0.5 bg-[#222] hover:bg-[#333] hover:text-white rounded text-[9px] text-blue-400 border border-[#333] transition-colors"><i class="fas fa-link mr-1"></i>Evidence ${i+1}</a>`;
                                                             }).join('')}
                                                         </div>
                                                     ` : ''}
-
                                                     ${(b.details.alts?.length || b.details.account_sharing?.length) ? `
                                                         <div class="bg-black/30 p-1.5 rounded border border-[#222]">
                                                             <div class="text-[9px] text-gray-600 uppercase font-bold mb-1">Linked Accounts (Justice)</div>
@@ -909,6 +958,9 @@
                                 </div>
                             ` : ''}
                         </div>
+                        
+                        <!-- INSERTED DISCORD INTELLIGENCE PANEL IF EXISTS -->
+                        ${discordPanel}
 
                         ${app.rings.length > 0 ? `
                             <div class="min-panel p-5 border-l-2 border-red-600 bg-red-900/5">
@@ -918,6 +970,16 @@
                                         const mem = r.members ? r.members.find(m => String(m.userId) === String(p.id)) : null;
                                         const role = mem ? mem.role : 'Member';
                                         const count = r.members ? r.members.length : 0;
+                                        const getRoleStyle = (role) => {
+                                            switch(role) {
+                                                case 'Leader': return 'bg-red-500 text-white border-red-400';
+                                                case 'Figurehead': return 'bg-purple-500 text-white border-purple-400';
+                                                case 'Alt': return 'bg-yellow-500 text-black border-yellow-400';
+                                                case 'Smurf': return 'bg-blue-500 text-white border-blue-400';
+                                                case 'Associate': return 'bg-green-500 text-white border-green-400';
+                                                default: return 'bg-gray-600 text-white border-gray-500'; 
+                                            }
+                                        };
                                         const roleStyle = getRoleStyle(role);
                                         return `<div class="border border-[#333] bg-[#111] p-3 rounded hover:border-[#555] transition-colors relative group cursor-pointer" onclick="openRingModal('remove')" title="${r.description||''}"><div class="flex justify-between items-start mb-2"><div class="text-red-300 font-bold text-sm truncate pr-2">${r.name}</div><div class="text-[10px] text-gray-500 flex-shrink-0 bg-[#222] px-1.5 py-0.5 rounded border border-[#333] flex items-center gap-1"><i class="fas fa-users"></i> ${count}</div></div><div class="flex items-center justify-between"><span class="text-[10px] uppercase font-bold px-2 py-0.5 rounded border ${roleStyle} shadow-sm tracking-wider">${role}</span><span class="text-[9px] text-gray-600 font-mono">${r.isActive !== false ? 'ACTIVE' : 'INACTIVE'}</span></div></div>`;
                                     }).join('')}
@@ -1095,72 +1157,18 @@
             let reasons = { positive: [], negative: [] };
             let decoded = null;
             const text = (profile.description || "").toLowerCase();
+            const rot13 = (s) => s.replace(/[a-z]/gi, c => String.fromCharCode((c<='Z'?90:122)>=(c=c.charCodeAt(0)+13)?c:c-26));
             
-            // --- Threat Keywords Check (Standard) ---
             if (text.includes('discord') || text.includes('cord') || text.includes('snap')) { score -= 20; reasons.negative.push({text: "Solicitation keywords detected", weight: -20, icon: "fa-comment-slash"}); }
-            
-            // --- UPDATED: General Caesar Cipher / ROT Solver (Includes ROT13) ---
-            // Only runs if description is long enough to contain meaningful content (e.g., > 5 chars)
-            if (text.length > 5) {
-                const threatKeywords = ['discord', 'game', 'join', 'group', 'server', 'code', 'invite', 'https', 'hack', 'exploit', 'script', 'roblox', 'channel', 'link'];
-                
-                // Common English words (4+ chars) to detect benign ciphers
-                const commonEnglish = [
-                    'that', 'with', 'have', 'this', 'will', 'your', 'from', 'they', 'know', 'want', 'been', 'good', 'much', 'some', 'time', 'very', 'when', 'come', 'here', 'just', 'like', 'long', 'make', 'many', 'more', 'only', 'over', 'such', 'take', 'than', 'them', 'well', 'were',
-                    'about', 'after', 'again', 'below', 'could', 'every', 'first', 'found', 'great', 'house', 'large', 'learn', 'never', 'other', 'place', 'plant', 'point', 'right', 'small', 'sound', 'spell', 'still', 'study', 'their', 'there', 'these', 'thing', 'think', 'three', 'water', 'where', 'which', 'world', 'would', 'write'
-                ];
-                
-                const allTriggers = [...threatKeywords, ...commonEnglish];
-
-                // Helper: Shifts string by N
-                const shiftStr = (str, amount) => {
-                    return str.replace(/[a-zA-Z]/g, (char) => {
-                        const base = char <= 'Z' ? 65 : 97; // Handle case based on char (but input is lowercased text for safety, though replace might catch original casing if we passed original)
-                        // Note: 'text' variable is already .toLowerCase(), but let's use a robust method in case we change input later
-                        const code = char.toLowerCase().charCodeAt(0); 
-                        if (code < 97 || code > 122) return char;
-                        return String.fromCharCode(((code - 97 + amount) % 26) + 97);
-                    });
-                };
-
-                let bestShift = 0;
-                let foundSuspicious = false;
-                let bestDecoded = "";
-
-                // Try shifts 1 through 25
-                for (let s = 1; s < 26; s++) {
-                    const attempt = shiftStr(text, s);
-                    
-                    // Check if this shift reveals any keywords
-                    if (allTriggers.some(k => attempt.includes(k))) {
-                        foundSuspicious = true;
-                        bestShift = s;
-                        bestDecoded = attempt;
-                        break; // Stop at the first meaningful match
-                    }
-                }
-
-                if (foundSuspicious) {
-                    score -= 30; 
-                    reasons.negative.push({text: `Obfuscated text detected (ROT${bestShift})`, weight: -30, icon: "fa-user-secret"}); 
-                    // Show full decoded text
-                    decoded = `[ROT${bestShift}]: ${bestDecoded}`; 
-                }
+            if(!text.includes(' ') && text.length > 10) {
+                const dec = rot13(text);
+                if(dec.includes('game') || dec.includes('join') || dec.includes('discord')) { score -= 30; reasons.negative.push({text: "Obfuscated text detected (ROT13)", weight: -30, icon: "fa-user-secret"}); decoded = dec; }
             }
-
-            // --- Morse Code Check ---
             if (/[.-]{1,5}(\s+[.-]{1,5})+/.test(profile.description)) {
                 const morseMatches = profile.description.match(/[.-]{1,5}(\s+[.-]{1,5})+/g);
                 if (morseMatches) {
                     const decodedMorse = morseMatches.map(m => decodeMorse(m)).join(' ');
-                    // Filter out noise: only flag if it decodes to actual letters/numbers length > 3
-                    if (decodedMorse.replace(/[^A-Z0-9]/g, '').length > 3) { 
-                        score -= 30; 
-                        reasons.negative.push({text: "Morse Code Detected", weight: -30, icon: "fa-code"}); 
-                        // If we already have a decoded message (from ROT), append this one
-                        if (decoded) decoded += ` | [MORSE]: ${decodedMorse}`;
-                        else decoded = `[MORSE]: ${decodedMorse}`;
-                    }
+                    if (decodedMorse.length > 3) { score -= 30; reasons.negative.push({text: "Morse Code Detected", weight: -30, icon: "fa-code"}); decoded = `[MORSE]: ${decodedMorse}`; }
                 }
             }
 
@@ -1173,23 +1181,19 @@
             if(rings && rings.length > 0) { score -= 50; reasons.negative.push({text: `Member of ${rings.length} Exploiter Ring(s)`, weight: -50, icon: "fa-link"}); }
             if(profile.isPOI) { score -= 50; reasons.negative.push({text: "Designated Person of Interest", weight: -50, icon: "fa-exclamation-triangle"}); }
 
-            // SDIS Agent Check (New Positive Flag)
             const sdisMember = profile.groups && profile.groups.find(g => String(g.id) === SDIS_GROUP_ID);
             if(sdisMember) {
                 score += 25;
                 reasons.positive.push({text: "SDIS Intelligence Agent", weight: 25, icon: "fa-user-secret"});
             }
 
-            // Federated Ban Penalties (Including new Justice API)
             if (federatedBans && federatedBans.length > 0) {
-                // Justice records are severe
                 const justiceRecords = federatedBans.filter(b => b.isJustice);
                 if (justiceRecords.length > 0) {
                      score -= 20;
                      reasons.negative.push({text: `${justiceRecords.length} Clanware Justice Record(s)`, weight: -90, icon: "fa-gavel"});
                 }
 
-                // General Federated (OOFD etc)
                 const otherRecords = federatedBans.filter(b => !b.isJustice);
                 if (otherRecords.length > 0) {
                     const fedPenalty = otherRecords.length * 40;
