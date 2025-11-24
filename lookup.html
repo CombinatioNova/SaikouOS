@@ -774,6 +774,15 @@
                 const drisk = calculateDiscordRisk(dt);
                 const avatar = dp.avatar ? `https://cdn.discordapp.com/avatars/${dp.id}/${dp.avatar}.png?size=64` : `https://cdn.discordapp.com/embed/avatars/0.png`;
                 
+                // Helper to decode snowflake for creation date
+                function formatSnowflake(id) {
+                    if(!id) return new Date();
+                    // Discord Epoch: 1420070400000
+                    const timestamp = (BigInt(id) >> 22n) + 1420070400000n;
+                    return new Date(Number(timestamp));
+                }
+                const createdDate = formatSnowflake(dp.id);
+
                 discordPanel = `
                     <div class="min-panel p-5 border-l-2 ${drisk.rBorder} bg-[#0e0e11] mt-6">
                          <div class="flex justify-between items-center mb-4 border-b border-[#222] pb-2">
@@ -789,6 +798,7 @@
                              <div>
                                  <div class="text-white font-bold text-sm">${dp.global_name || dp.username}</div>
                                  <div class="text-xs text-gray-500 font-mono">ID: ${dp.id}</div>
+                                 <div class="text-[10px] text-gray-600 font-mono mt-0.5">Created: ${createdDate.toLocaleDateString()}</div>
                              </div>
                              <div class="ml-auto text-right">
                                  <div class="text-xl font-black ${drisk.color}">${dt.scoreSum}</div>
@@ -801,7 +811,10 @@
                              <div class="space-y-1 max-h-32 overflow-y-auto custom-scroll pr-1">
                                  ${dt.guilds.map(g => `
                                      <div class="flex justify-between items-center p-2 bg-[#18181b] rounded border border-[#222]">
-                                         <div class="truncate text-xs text-gray-300 pr-2">${g.name}</div>
+                                         <div>
+                                            <div class="truncate text-xs text-gray-300 font-bold pr-2">${g.name}</div>
+                                            <div class="text-[9px] text-gray-500 uppercase tracking-wider">${g.type || 'Unknown Type'}</div>
+                                         </div>
                                          <div class="flex items-center gap-1">
                                              ${g.isStaff ? '<span class="text-[9px] text-red-400 bg-red-900/20 px-1 rounded font-bold">STAFF</span>' : ''}
                                              <span class="text-[9px] font-mono text-red-500 font-bold">+${g.score}</span>
@@ -1171,12 +1184,12 @@
             // MDNI Check (Minors Do Not Interact = NSFW acknowledgement)
             if (text.includes('mdni')) { 
                 score -= 50; 
-                reasons.negative.push({text: "Restricted Interaction (MDNI) Marker", weight: -10, icon: "fa-ban"}); 
+                reasons.negative.push({text: "Restricted Interaction (MDNI) Marker", weight: -50, icon: "fa-ban"}); 
             }
             
             // --- 2. DECODER LOGIC (Caesar Brute Force 1-25) ---
             // Expanded dictionary based on user report
-            const badWords = ['game', 'join', 'discord', 'slut', 'cock', 'cum', 'fuck', 'nude', 'sex', 'dick', 'pussy', 'whore', 'rape', 'snuff', 'piss', 'bondage', 'bdsm', 'gore', 'kill', 'shoot', 'hitman', 'murder', 'traffick'];
+            const badWords = ['join', 'discord', 'slut', 'cock', 'cum', 'fuck', 'nude', 'sex', 'dick', 'pussy', 'whore', 'rape', 'snuff', 'piss', 'bondage', 'bdsm', 'gore', 'kill', 'shoot', 'hitman', 'murder', 'traffick'];
             
             const caesar = (str, shift) => {
                 return str.replace(/[a-zA-Z]/g, c => {
