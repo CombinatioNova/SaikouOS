@@ -501,12 +501,12 @@
         // --- Configuration ---
         const AUTH_WORKER = 'https://sdis-authenticator.saikoudevelopment.workers.dev';
 
-        // UPDATED: Refactored icons to include full classes (fa-solid vs fa-brands)
-        // Added 'DisLookup'
+        // UPDATED: Added 'decrypt' app
         const ALL_APPS = [
             { id: 'netvis', title: 'Network Visualizer', icon: 'fa-solid fa-share-nodes', color: 'from-blue-600 to-cyan-500', restricted: false, url: 'netvis.html', width: 1000, height: 700 },
             { id: 'lookup', title: 'Player Lookup', icon: 'fa-solid fa-magnifying-glass', color: 'from-purple-600 to-pink-500', restricted: false, url: 'lookup.html', width: 900, height: 800 },
-            { id: 'dislookup', title: 'DisLookup', icon: 'fa-brands fa-discord', color: 'from-indigo-500 to-purple-600', restricted: false, url: 'dislookup.html', width: 850, height: 700 }, // NEW APP
+            { id: 'dislookup', title: 'DisLookup', icon: 'fa-brands fa-discord', color: 'from-indigo-500 to-purple-600', restricted: false, url: 'dislookup.html', width: 850, height: 700 },
+            { id: 'decrypt', title: 'Decryptor', icon: 'fa-solid fa-unlock-keyhole', color: 'from-teal-500 to-emerald-500', restricted: false, url: 'decrypt.html', width: 800, height: 600 }, // NEW APP
             { id: 'panel', title: 'User Panel', icon: 'fa-solid fa-users-gear', color: 'from-emerald-500 to-green-500', restricted: false, url: 'panel.html', width: 800, height: 600 },
             { id: 'sdis', title: 'SDIS Admin', icon: 'fa-solid fa-shield-halved', color: 'from-red-600 to-orange-600', restricted: true, url: 'sdis.html', width: 1100, height: 750 },
             { id: 'rings', title: 'Ring Manager', icon: 'fa-solid fa-link', color: 'from-rose-500 to-red-500', restricted: true, url: 'sdis-rings.html', width: 1000, height: 700 },
