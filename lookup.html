@@ -234,7 +234,31 @@
     </div>
 
     <script>
-        // --- Configuration & State ---
+        // --- CONFIG ---
+        const ENG_FREQ = {
+            'a': 8.167, 'b': 1.492, 'c': 2.782, 'd': 4.253, 'e': 12.702, 'f': 2.228,
+            'g': 2.015, 'h': 6.094, 'i': 6.966, 'j': 0.153, 'k': 0.772, 'l': 4.025,
+            'm': 2.406, 'n': 6.749, 'o': 7.507, 'p': 1.929, 'q': 0.095, 'r': 5.987,
+            's': 6.327, 't': 9.056, 'u': 2.758, 'v': 0.978, 'w': 2.360, 'x': 0.150,
+            'y': 1.974, 'z': 0.074
+        };
+        // Expanded Dictionary for better detection
+        const COMMON_WORDS = new Set([
+            // Articles, Pronouns, Prepositions
+            "the","be","to","of","and","a","in","that","have","i","it","for","not","on","with","he","as","you","do","at","this","but","his","by","from","they","we","say","her","she","or","an","will","my","one","all","would","there","their","what","so","up","out","if","about","who","get","which","go","me","when","make","can","like","time","no","just","him","know","take","people","into","year","your","good","some","could","them","see","other","than","then","now","look","only","come","its","over","think","also","back","after","use","two","how","our","work","first","well","way","even","new","want","because","any","these","give","day","most","us",
+            // Common Verbs & Nouns
+            "is","are","was","were","been","has","had","do","does","did","done","said","says","went","gone","made","make","know","known","thought","think","take","taken","saw","seen","come","came","put","set","found","find","told","tell","ask","asked","seem","seemed","feel","felt","try","tried","leave","left","call","called",
+            "time","person","year","way","day","thing","man","world","life","hand","part","child","eye","woman","place","work","week","case","point","government","company","number","group","problem","fact",
+            // Adjectives
+            "big","high","different","small","large","next","early","young","important","few","public","bad","same","able",
+            // Tech / Crypto / CTF Specific
+            "flag","secret","password","code","admin","root","login","user","username","pass","key","token","auth","session","cookie","hidden","message","encrypted","cipher","text","string","hash","value","data","system","access","denied","granted","success","fail","error","warning","level","stage","phase","clue","hint","solve","solution","answer","correct","wrong","true","false","null","void","return","function","var","let","const","class","import","export","from",
+            // Gaming / Roblox / Platform Specific
+            "roblox","rbx","robux","dev","developer","studio","script","lua","exploit","hack","cheat","banned","ban","kick","server","client","obby","tycoon","simulator","roleplay","rp","avatar","skin","item","trade","limited","ugc","group","clan","raid","alt","main","smurf","discord","cord","disc","vc","voice","chat","mod","admin","owner","creator","builder","gui",
+            // Safety / Moderation / Flagged Terms (Predator Behavior Indicators)
+            "age","old","young","boy","girl","pic","picture","photo","snap","insta","kik","meet","irl","real","life","address","school","live","where","location","send","nude","sexy","hot","cute","love","baby","daddy","mommy","secret","private","dm","pm","message","hidden","room","house","bed","sleep","touch","kiss","trust","promise","video","cam","webcam","naked","body"
+        ]);
+
         const AUTH_WORKER = 'https://sdis-authenticator.saikoudevelopment.workers.dev';
         const DATA_WORKER = 'https://saikou-ban-proxy.saikoudevelopment.workers.dev';
         const ROTECTOR_API = 'https://roscoe.robalyx.com/v1/lookup/roblox/user';
@@ -247,26 +271,162 @@
         const SAIKOU_GROUP_ID = "3149674"; 
         const SDIS_GROUP_ID = "549702194"; 
 
-        // --- GLOBAL CIPHER TOOLS ---
+        // --- GLOBAL CIPHER TOOLS & DECRYPTION ENGINE ---
         const BAD_WORDS = ['join', 'discord', 'slut', 'cock', 'cum', 'fuck', 'nude', 'sex', 'dick', 'pussy', 'whore', 'rape', 'snuff', 'piss', 'bondage', 'bdsm', 'gore', 'kill', 'shoot', 'hitman', 'murder', 'traffick', 'bitch'];
-        
-        const caesar = (str, shift) => {
-            return str.replace(/[a-zA-Z]/g, c => {
-                const base = c < 'a' ? 65 : 97;
-                return String.fromCharCode(((c.charCodeAt(0) - base + shift) % 26) + base);
-            });
-        };
 
-        function tryCrackCipher(text) {
-            if(!text || typeof text !== 'string') return null;
-            for (let i = 1; i < 26; i++) {
-                const dec = caesar(text, i);
-                const lowerDec = dec.toLowerCase();
-                const found = BAD_WORDS.find(w => lowerDec.includes(w));
-                if (found) {
-                    return { method: `ROT${i}`, text: dec, trigger: found };
+        // --- ANALYSIS HELPERS (From decrypt.html) ---
+        function cleanStr(str) { return str.toLowerCase().replace(/[^a-z]/g, ""); }
+
+        function calculateIoC(text) {
+            const clean = cleanStr(text);
+            const len = clean.length;
+            if (len <= 1) return 0;
+            const counts = {};
+            for (let char of clean) counts[char] = (counts[char] || 0) + 1;
+            let numerator = 0;
+            for (let char in counts) numerator += counts[char] * (counts[char] - 1);
+            return (numerator / (len * (len - 1))) * 26; 
+        }
+
+        function scoreText(text) {
+            if (!text || text.length === 0) return -100;
+            const lower = text.toLowerCase();
+            const words = lower.split(/[\s,.-]+/);
+            let wordScore = 0;
+            
+            words.forEach(w => {
+                if (w.length > 1 && COMMON_WORDS.has(w)) wordScore += 10;
+            });
+
+            const clean = cleanStr(text);
+            if (clean.length === 0) return -50;
+            
+            const counts = {};
+            for (let c of clean) counts[c] = (counts[c] || 0) + 1;
+            let chiSquared = 0;
+            for (let char in ENG_FREQ) {
+                const observed = counts[char] || 0;
+                const expected = (ENG_FREQ[char] / 100) * clean.length;
+                chiSquared += Math.pow(observed - expected, 2) / expected;
+            }
+
+            let finalScore = (wordScore * 2) - (chiSquared / 2);
+            if (text.includes(" ")) finalScore += 5;
+            return finalScore;
+        }
+
+        // --- CIPHER ALGORITHMS (From decrypt.html) ---
+        function decryptCaesar(text, shift) {
+            return text.replace(/[a-zA-Z]/g, char => {
+                const base = char <= 'Z' ? 65 : 97;
+                return String.fromCharCode(((char.charCodeAt(0) - base - shift + 26) % 26) + base);
+            });
+        }
+
+        function decryptAtbash(text) {
+            return text.replace(/[a-zA-Z]/g, char => {
+                const base = char <= 'Z' ? 65 : 97;
+                return String.fromCharCode(base + (25 - (char.charCodeAt(0) - base)));
+            });
+        }
+
+        function decryptRailFence(text, rails) {
+            const clean = text.replace(/\r?\n|\r/g, '');
+            if (clean.length === 0 || rails <= 1) return clean;
+            const cycle = 2 * (rails - 1);
+            const len = clean.length;
+            const fence = new Array(rails).fill(0).map(() => []);
+            const railCounts = new Array(rails).fill(0);
+            for (let i = 0; i < len; i++) {
+                const pos = i % cycle;
+                const row = pos < rails ? pos : cycle - pos;
+                railCounts[row]++;
+            }
+            let index = 0;
+            for (let r = 0; r < rails; r++) {
+                for (let c = 0; c < railCounts[r]; c++) {
+                    if (index < len) fence[r].push(clean[index++]);
                 }
             }
+            let result = "";
+            const railIndices = new Array(rails).fill(0);
+            for (let i = 0; i < len; i++) {
+                const pos = i % cycle;
+                const row = pos < rails ? pos : cycle - pos;
+                if (fence[row][railIndices[row]]) {
+                    result += fence[row][railIndices[row]];
+                    railIndices[row]++;
+                }
+            }
+            return result;
+        }
+
+        function escapeHtml(text) {
+            return text ? text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;") : '';
+        }
+
+        // --- SMART CRACKER ---
+        function attemptCrack(text) {
+            if(!text || typeof text !== 'string' || text.length < 3) return null;
+            let attempts = [];
+
+            // 1. Base64
+            try { 
+                const b64 = atob(text); 
+                attempts.push({ method: "Base64", text: b64, score: scoreText(b64) + 20 }); 
+            } catch(e){}
+
+            // 2. Hex
+            const cleanHex = text.replace(/\s/g, '');
+            if(/^[0-9A-Fa-f]+$/.test(cleanHex) && cleanHex.length % 2 === 0) {
+                let str = '';
+                try {
+                    for (let i = 0; i < cleanHex.length; i += 2) str += String.fromCharCode(parseInt(cleanHex.substr(i, 2), 16));
+                    attempts.push({ method: "Hex", text: str, score: scoreText(str) + 20 });
+                } catch(e){}
+            }
+
+            // 3. Atbash
+            const atb = decryptAtbash(text);
+            attempts.push({ method: "Atbash", text: atb, score: scoreText(atb) });
+
+            // 4. Caesar (Brute Force 1-25)
+            for(let s=1; s<26; s++) {
+                const res = decryptCaesar(text, s);
+                attempts.push({ method: `Caesar (-${s})`, text: res, score: scoreText(res) });
+            }
+
+            // 5. Rail Fence (Brute Force 2-10)
+            for(let r=2; r<=10; r++) {
+                const res = decryptRailFence(text, r);
+                attempts.push({ method: `Rail Fence (${r})`, text: res, score: scoreText(res) });
+            }
+
+            // Sort by Score
+            attempts.sort((a, b) => b.score - a.score);
+
+            const best = attempts[0];
+            
+            // Check for explicit triggers in the best result
+            const lowerDec = best.text.toLowerCase();
+            const badTrigger = BAD_WORDS.find(w => lowerDec.includes(w));
+            
+            if (badTrigger) {
+                best.score += 50; // Boost score if we found a bad word (it means we successfully cracked a threat)
+                best.confidence = "HIGH";
+                best.hasThreat = true;
+                best.trigger = badTrigger;
+                return best;
+            }
+
+            // Return best result if it looks like English/Language
+            if (best.score > 10) {
+                if (best.score > 30) best.confidence = "HIGH";
+                else if (best.score > 15) best.confidence = "POSSIBLE";
+                else best.confidence = "LOW";
+                return best;
+            }
+
             return null;
         }
 
@@ -357,7 +517,7 @@
             }
         }
 
-        // --- NAVIGATION LOGIC (NEW) ---
+        // --- NAVIGATION LOGIC ---
         function updateNavButtons() {
             const backBtn = document.getElementById('btn-nav-back');
             const fwdBtn = document.getElementById('btn-nav-fwd');
@@ -975,7 +1135,7 @@
                             <div class="pt-3 border-t border-[#333]">
                                 <div class="text-[10px] text-gray-600 uppercase mb-1">Bio</div>
                                 <div class="text-xs text-gray-400 italic break-words">${p.description || "No description."}</div>
-                                ${risk.decoded ? `<div class="mt-2 bg-yellow-900/20 border border-yellow-900/50 p-2 rounded"><div class="text-[10px] text-yellow-600 uppercase font-bold mb-1"><i class="fas fa-unlock mr-1"></i>Decoded</div><div class="text-xs text-yellow-500/80 font-mono">${risk.decoded}</div></div>` : ''}
+                                ${risk.decoded ? `<div class="mt-2 bg-yellow-900/20 border border-yellow-900/50 p-2 rounded">${risk.decoded}</div>` : ''}
                             </div>
                         </div>
 
@@ -1051,7 +1211,7 @@
                                             let evidenceHtml = '';
                                             if (data.evidence) {
                                                 const evText = Array.isArray(data.evidence) ? data.evidence.join('\n') : data.evidence;
-                                                const decodedEv = tryCrackCipher(evText);
+                                                const decodedEv = attemptCrack(evText);
                                                 evidenceHtml = `
                                                     <div class="bg-[#000] border border-[#222] rounded p-2 text-[10px] font-mono text-gray-500 break-all relative">
                                                         <span class="absolute top-[-8px] left-2 bg-[#000] px-1 text-[8px] uppercase text-gray-600">Evidence</span>
@@ -1292,20 +1452,30 @@
                 reasons.negative.push({text: "Restricted Interaction (MDNI) Marker", weight: -50, icon: "fa-ban"}); 
             }
             
-            const cracked = tryCrackCipher(profile.description);
+            // NEW: Use advanced cracker instead of simple replacement
+            const cracked = attemptCrack(profile.description);
             if (cracked) {
-                score -= 60;
-                reasons.negative.push({text: `Encoded explicit text (${cracked.method})`, weight: -60, icon: "fa-user-secret"});
-                decoded = `[${cracked.method}]: ${cracked.text}`;
-            } else {
-                if (!text.includes(' ') && text.length > 10) {
-                    const dec13 = caesar(text, 13);
-                    if(dec13.includes('https') || dec13.includes('.com') || dec13.includes('roblox')) {
-                        score -= 30;
-                        reasons.negative.push({text: "Obfuscated Link detected", weight: -30, icon: "fa-link"});
-                        decoded = dec13;
-                    }
+                // Determine Badge Style based on Confidence
+                let badgeClass = "bg-gray-800 text-gray-500 border-gray-700";
+                if (cracked.confidence === "HIGH") badgeClass = "bg-green-900/20 text-green-500 border-green-900";
+                else if (cracked.confidence === "POSSIBLE") badgeClass = "bg-yellow-900/20 text-yellow-500 border-yellow-900";
+
+                // Logic: Obfuscation is always suspicious, but explicit content is dangerous.
+                if (cracked.hasThreat) {
+                    score -= 60;
+                    reasons.negative.push({text: `Encoded explicit text (${cracked.method})`, weight: -60, icon: "fa-user-secret"});
+                } else {
+                    score -= 15;
+                    reasons.negative.push({text: `Obfuscated text detected (${cracked.method})`, weight: -15, icon: "fa-low-vision"});
                 }
+
+                decoded = `
+                    <div class="text-[10px] text-yellow-600 uppercase font-bold mb-1 flex items-center justify-between">
+                        <div><i class="fas fa-unlock mr-1"></i>Decoded (${cracked.method})</div>
+                        <span class="text-[8px] border px-1.5 py-0.5 rounded ${badgeClass}">${cracked.confidence} MATCH</span>
+                    </div>
+                    <div class="text-xs text-yellow-500/80 font-mono select-text">${escapeHtml(cracked.text)}</div>
+                `;
             }
 
             if (/[.-]{1,5}(\s+[.-]{1,5})+/.test(profile.description)) {
