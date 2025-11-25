@@ -667,7 +667,7 @@
                         Dormant: 'text-gray-500 border-gray-500/30 bg-gray-500/10',
                     };
                     const statusText = ring.status || 'Unknown';
-                    const statusClass = statusColors[statusText];
+                    const statusClass = statusColors[statusText] || statusColors['Unknown'];
 
                     return `
                     <div class="min-panel p-5 flex flex-col justify-between hover:border-[#555] group h-full">
@@ -690,8 +690,6 @@
                     </div>
                     `;
                 }).join('');
-                // NOTE: Removed previous querySelectorAll event listener attachment
-                // to use Event Delegation on ringsGrid instead.
             };
             
             // --- Avatar Fetching Function with Caching ---
@@ -793,7 +791,7 @@
                 memberCountBadge.textContent = members?.length || 0;
                 
                 if (!members || members.length === 0) {
-                    membersList.innerHTML = `<div class="p-4 text-center text-xs text-gray-600 font-mono">No operatives found in roster.</div>`;
+                    membersList.innerHTML = `<div class="p-4 text-center text-xs text-gray-600 font-mono">No members found in roster.</div>`;
                     return;
                 }
                 
@@ -919,9 +917,15 @@
                         method: 'POST',
                         body: JSON.stringify({ members: [member] })
                     });
-                    await renderMembers(data.updatedRing.members);
-                    showToast('Operative added to roster', 'success');
-                    addMemberInput.value = '';
+                    
+                    // Added check to ensure data exists before access
+                    if (data && data.updatedRing) {
+                         await renderMembers(data.updatedRing.members);
+                         showToast('Member added to roster', 'success');
+                         addMemberInput.value = '';
+                    } else {
+                         throw new Error("Invalid response from server.");
+                    }
                 } catch(error) {
                      showToast(error.message, 'error');
                 } finally {
@@ -938,7 +942,7 @@
                          body: JSON.stringify({ userIds: [parseInt(userId)] })
                      });
                      await renderMembers(data.updatedRing.members);
-                     showToast('Operative removed from roster', 'success');
+                     showToast('Member removed from roster', 'success');
                  } catch(error) {
                      showToast(error.message, 'error');
                  }
@@ -1072,7 +1076,7 @@
                 const removeBtn = e.target.closest('.remove-member-btn');
                 if (removeBtn) {
                      const userId = removeBtn.dataset.userId;
-                     showConfirmationModal('Remove this operative from the ring?', () => {
+                     showConfirmationModal('Remove this member from the ring?', () => {
                         removeMember(userId);
                      });
                      return;
