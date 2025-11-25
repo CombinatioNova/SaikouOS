@@ -18,7 +18,9 @@
 
     <!-- Fonts & Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet" />
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=JetBrains+Mono:wght@400;700&display=swap"
+        rel="stylesheet" />
 
     <style>
         :root {
@@ -60,7 +62,10 @@
             transition: border-color 0.2s;
             width: 100%;
         }
-        .min-input:focus { border-color: #666; }
+
+        .min-input:focus {
+            border-color: #666;
+        }
 
         .min-btn {
             background: white;
@@ -77,8 +82,15 @@
             gap: 0.5rem;
             transition: opacity 0.2s;
         }
-        .min-btn:hover { opacity: 0.9; }
-        .min-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .min-btn:hover {
+            opacity: 0.9;
+        }
+
+        .min-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
 
         .min-btn-outline {
             background: transparent;
@@ -94,6 +106,7 @@
             gap: 0.5rem;
             transition: all 0.2s;
         }
+
         .min-btn-outline:hover {
             border-color: #666;
             color: white;
@@ -109,37 +122,82 @@
             overflow: hidden;
         }
 
-        #graph-svg { width: 100%; height: 100%; cursor: grab; }
-        #graph-svg:active { cursor: grabbing; }
+        #graph-svg {
+            width: 100%;
+            height: 100%;
+            cursor: grab;
+        }
+
+        #graph-svg:active {
+            cursor: grabbing;
+        }
 
         /* Node Styles */
-        .node { cursor: pointer; transition: opacity 0.2s ease; }
-        
+        .node {
+            cursor: pointer;
+            transition: opacity 0.2s ease;
+        }
+
         /* Default (Normal) Node Outline */
         .node .node-outline {
-            stroke: #333; 
-            stroke-width: 1.5px; 
+            stroke: #333;
+            stroke-width: 1.5px;
             transition: all 0.2s;
-            pointer-events: all; /* Crucial for reliable clicks */
+            pointer-events: all;
+            /* Crucial for reliable clicks */
         }
-        
+
         /* Hover State */
-        .node:hover .node-outline { stroke: #fff; stroke-width: 2px; }
-        
+        .node:hover .node-outline {
+            stroke: #fff;
+            stroke-width: 2px;
+        }
+
         /* Special Node Types */
-        .node.seed-user .node-outline { stroke: var(--accent-purple); stroke-width: 2px; }
-        
+        .node.seed-user .node-outline {
+            stroke: var(--accent-purple);
+            stroke-width: 2px;
+        }
+
         /* Banned Pop Animation - FASTER (1s) */
         @keyframes pulse-danger {
-            0% { stroke: #ef4444; stroke-width: 2px; filter: drop-shadow(0 0 0 rgba(239, 68, 68, 0)); }
-            50% { stroke: #ef4444; stroke-width: 3px; filter: drop-shadow(0 0 10px rgba(239, 68, 68, 0.6)); }
-            100% { stroke: #ef4444; stroke-width: 2px; filter: drop-shadow(0 0 0 rgba(239, 68, 68, 0)); }
+            0% {
+                stroke: #ef4444;
+                stroke-width: 2px;
+                filter: drop-shadow(0 0 0 rgba(239, 68, 68, 0));
+            }
+
+            50% {
+                stroke: #ef4444;
+                stroke-width: 3px;
+                filter: drop-shadow(0 0 10px rgba(239, 68, 68, 0.6));
+            }
+
+            100% {
+                stroke: #ef4444;
+                stroke-width: 2px;
+                filter: drop-shadow(0 0 0 rgba(239, 68, 68, 0));
+            }
         }
-        .node.banned .node-outline { animation: pulse-danger 1s infinite; }
+
+        .node.banned .node-outline {
+            animation: pulse-danger 1s infinite;
+        }
 
         /* Links */
-        .link { stroke: #333; stroke-opacity: 0.6; stroke-width: 1.5px; transition: stroke-opacity 0.2s; }
-        .link.ring { stroke: #ef4444 !important; stroke-opacity: 0.8 !important; stroke-width: 2px; stroke-dasharray: 4, 4; }
+        .link {
+            stroke: #333;
+            stroke-opacity: 0.6;
+            stroke-width: 1.5px;
+            transition: stroke-opacity 0.2s;
+        }
+
+        .link.ring {
+            stroke: #ef4444 !important;
+            stroke-opacity: 0.8 !important;
+            stroke-width: 2px;
+            stroke-dasharray: 4, 4;
+        }
 
         /* Tooltip */
         #graph-tooltip {
@@ -155,9 +213,10 @@
             z-index: 60;
             opacity: 0;
             transition: opacity 0.1s;
-            transform: translate(10px, 10px); /* Offset from cursor */
+            transform: translate(10px, 10px);
+            /* Offset from cursor */
             white-space: nowrap;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
         }
 
         /* --- Overlays --- */
@@ -173,57 +232,111 @@
 
         /* Slide-in Panels */
         #control-panel {
-            position: absolute; top: 20px; left: 20px; width: 300px;
-            transform: translateX(0); transition: transform 0.3s ease; z-index: 40;
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            width: 300px;
+            transform: translateX(0);
+            transition: transform 0.3s ease;
+            z-index: 40;
         }
-        #control-panel.collapsed { transform: translateX(-320px); }
+
+        #control-panel.collapsed {
+            transform: translateX(-320px);
+        }
 
         #node-detail-card {
-            position: absolute; top: 20px; right: 20px; width: 320px;
-            transform: translateX(350px); transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-            z-index: 50; max-height: calc(100% - 40px); overflow-y: auto;
-            display: flex; flex-direction: column;
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            width: 320px;
+            transform: translateX(350px);
+            transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+            z-index: 50;
+            max-height: calc(100% - 40px);
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
         }
-        #node-detail-card.active { transform: translateX(0); }
+
+        #node-detail-card.active {
+            transform: translateX(0);
+        }
 
         /* Loading Scan Animation - REDUCED TO 1s */
         @keyframes scan-line {
-            0% { transform: translateX(-100%); }
-            100% { transform: translateX(100%); }
+            0% {
+                transform: translateX(-100%);
+            }
+
+            100% {
+                transform: translateX(100%);
+            }
         }
+
         .scan-anim {
             animation: scan-line 1s infinite linear;
         }
 
         /* Tags & Utils */
         .user-tag {
-            background: #111; border: 1px solid #333; color: #ccc;
-            font-family: 'JetBrains Mono', monospace; font-size: 11px;
-            padding: 4px 8px; border-radius: 4px; display: inline-flex; align-items: center; gap: 6px;
+            background: #111;
+            border: 1px solid #333;
+            color: #ccc;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            padding: 4px 8px;
+            border-radius: 4px;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
         }
-        .user-tag .remove-btn:hover { color: #fff; }
-        
+
+        .user-tag .remove-btn:hover {
+            color: #fff;
+        }
+
         .modal-backdrop {
-            position: fixed; inset: 0; background: rgba(0,0,0,0.85);
-            backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center;
-            z-index: 100; opacity: 0; pointer-events: none; transition: opacity 0.2s;
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(4px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s;
         }
-        .modal-backdrop.active { opacity: 1; pointer-events: auto; }
-        
-        .custom-scroll::-webkit-scrollbar { width: 6px; }
-        .custom-scroll::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+
+        .modal-backdrop.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .custom-scroll::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .custom-scroll::-webkit-scrollbar-thumb {
+            background: #333;
+            border-radius: 3px;
+        }
     </style>
 </head>
 
 <body>
 
     <!-- Navbar -->
-    <nav class="sticky top-0 z-50 bg-black/90 border-b border-[#222] px-4 h-[60px] flex items-center justify-between backdrop-blur-md">
+    <nav
+        class="sticky top-0 z-50 bg-black/90 border-b border-[#222] px-4 h-[60px] flex items-center justify-between backdrop-blur-md">
         <a href="/" class="flex items-center gap-2">
             <div class="w-2 h-2 bg-white rounded-full"></div>
-            <div class="font-bold text-lg tracking-tight text-white">Saikou Tools <span class="text-gray-600 font-normal">/ Netvis</span></div>
+            <div class="font-bold text-lg tracking-tight text-white">Saikou Tools <span
+                    class="text-gray-600 font-normal">/ Netvis</span></div>
         </a>
-        
+
         <div id="auth-ui" class="flex items-center gap-3">
             <button id="btn-login" class="min-btn-outline text-xs uppercase tracking-wider font-semibold">
                 <i class="fas fa-lock text-[10px]"></i> <span class="ml-2">SDIS Access</span>
@@ -234,7 +347,8 @@
                     <div id="user-role" class="text-[10px] text-gray-500 uppercase mt-1 font-mono"></div>
                 </div>
                 <img id="user-avatar" class="w-8 h-8 rounded bg-gray-900 border border-[#333]">
-                <button id="btn-logout" class="text-gray-500 hover:text-white px-2"><i class="fas fa-sign-out-alt"></i></button>
+                <button id="btn-logout" class="text-gray-500 hover:text-white px-2"><i
+                        class="fas fa-sign-out-alt"></i></button>
             </div>
         </div>
     </nav>
@@ -243,9 +357,10 @@
     <div class="graph-wrapper">
         <div id="graph-tooltip"></div>
         <svg id="graph-svg"></svg>
-        
+
         <!-- Global Loading Overlay -->
-        <div id="loading-overlay" class="absolute inset-0 bg-black/90 flex flex-col items-center justify-center z-50 hidden backdrop-blur-md">
+        <div id="loading-overlay"
+            class="absolute inset-0 bg-black/90 flex flex-col items-center justify-center z-50 hidden backdrop-blur-md">
             <div class="text-white font-mono text-sm mb-2" id="loading-text">INITIALIZING...</div>
             <div class="w-64 h-1 bg-gray-800 rounded overflow-hidden">
                 <div id="loading-bar" class="h-full bg-white transition-all duration-300" style="width: 0%"></div>
@@ -257,7 +372,8 @@
             <div>
                 <div class="flex justify-between items-center mb-2">
                     <label class="text-[10px] font-bold text-gray-500 uppercase">Target Identification</label>
-                    <button id="toggle-controls" class="text-gray-500 hover:text-white"><i class="fas fa-minus"></i></button>
+                    <button id="toggle-controls" class="text-gray-500 hover:text-white"><i
+                            class="fas fa-minus"></i></button>
                 </div>
                 <div class="flex gap-2">
                     <input type="text" id="user-input" class="min-input" placeholder="Username or ID...">
@@ -271,7 +387,8 @@
                 <button id="generate-btn" class="min-btn w-full flex-1" disabled>
                     <i class="fas fa-project-diagram"></i> Generate
                 </button>
-                <button id="clear-btn" class="min-btn-outline text-red-500 border-red-900/30 hover:bg-red-900/10" title="Clear All">
+                <button id="clear-btn" class="min-btn-outline text-red-500 border-red-900/30 hover:bg-red-900/10"
+                    title="Clear All">
                     <i class="fas fa-trash"></i>
                 </button>
             </div>
@@ -282,7 +399,9 @@
                 <label class="text-[10px] font-bold text-gray-500 uppercase mb-2 block">Node Filter</label>
                 <div class="flex items-center gap-2 bg-[#111] border border-[#333] rounded px-2 py-1.5">
                     <i class="fas fa-search text-gray-500 text-xs"></i>
-                    <input type="text" id="node-search" class="bg-transparent border-none text-xs text-white w-full outline-none font-mono" placeholder="Find user...">
+                    <input type="text" id="node-search"
+                        class="bg-transparent border-none text-xs text-white w-full outline-none font-mono"
+                        placeholder="Find user...">
                     <span id="search-count" class="text-[10px] text-gray-500 font-mono">0</span>
                 </div>
             </div>
@@ -291,7 +410,8 @@
                 <div class="text-[10px] uppercase text-gray-500 font-bold mb-2">Graph Legend</div>
                 <div class="grid grid-cols-2 gap-y-2 gap-x-2">
                     <div class="flex items-center gap-2 text-xs text-gray-300">
-                        <span class="w-2 h-2 rounded-full bg-[#0a0a0a] border border-[#8b5cf6] border-2"></span> Seed Target
+                        <span class="w-2 h-2 rounded-full bg-[#0a0a0a] border border-[#8b5cf6] border-2"></span> Seed
+                        Target
                     </div>
                     <div class="flex items-center gap-2 text-xs text-gray-300">
                         <span class="w-2 h-2 rounded-full bg-[#ef4444] shadow-[0_0_8px_#ef4444]"></span> Banned User
@@ -326,18 +446,24 @@
                 <div class="text-[10px] uppercase text-gray-500 font-bold mb-2">Force Physics</div>
                 <div class="space-y-3">
                     <div>
-                        <div class="flex justify-between text-[10px] text-gray-400 mb-1"><span>Charge</span> <span id="val-charge">-300</span></div>
-                        <input type="range" id="charge-slider" min="-1000" max="0" value="-300" class="w-full h-1 bg-gray-800 rounded-lg appearance-none cursor-pointer">
+                        <div class="flex justify-between text-[10px] text-gray-400 mb-1"><span>Charge</span> <span
+                                id="val-charge">-300</span></div>
+                        <input type="range" id="charge-slider" min="-1000" max="0" value="-300"
+                            class="w-full h-1 bg-gray-800 rounded-lg appearance-none cursor-pointer">
                     </div>
                     <div>
-                        <div class="flex justify-between text-[10px] text-gray-400 mb-1"><span>Distance</span> <span id="val-dist">80</span></div>
-                        <input type="range" id="dist-slider" min="10" max="300" value="80" class="w-full h-1 bg-gray-800 rounded-lg appearance-none cursor-pointer">
+                        <div class="flex justify-between text-[10px] text-gray-400 mb-1"><span>Distance</span> <span
+                                id="val-dist">80</span></div>
+                        <input type="range" id="dist-slider" min="10" max="300" value="80"
+                            class="w-full h-1 bg-gray-800 rounded-lg appearance-none cursor-pointer">
                     </div>
                 </div>
             </div>
             <div class="flex gap-2 pointer-events-auto">
-                <button id="export-btn" class="min-btn-outline bg-black text-xs" title="Export Map"><i class="fas fa-download"></i></button>
-                <button onclick="document.getElementById('import-file').click()" class="min-btn-outline bg-black text-xs" title="Import Map"><i class="fas fa-upload"></i></button>
+                <button id="export-btn" class="min-btn-outline bg-black text-xs" title="Export Map"><i
+                        class="fas fa-download"></i></button>
+                <button onclick="document.getElementById('import-file').click()"
+                    class="min-btn-outline bg-black text-xs" title="Import Map"><i class="fas fa-upload"></i></button>
                 <input type="file" id="import-file" class="hidden" accept=".json">
             </div>
         </div>
@@ -357,12 +483,14 @@
                         <div id="card-id" class="text-xs text-gray-500 font-mono"></div>
                     </div>
                 </div>
-                <button onclick="closeCard()" class="text-gray-500 hover:text-white"><i class="fas fa-times"></i></button>
+                <button onclick="closeCard()" class="text-gray-500 hover:text-white"><i
+                        class="fas fa-times"></i></button>
             </div>
-            
+
             <div class="p-4 flex-1 overflow-y-auto custom-scroll space-y-4">
                 <!-- POI Alert -->
-                <div id="poi-alert-block" class="hidden bg-red-900/20 border border-red-800 p-3 rounded flex items-start gap-3 mb-2">
+                <div id="poi-alert-block"
+                    class="hidden bg-red-900/20 border border-red-800 p-3 rounded flex items-start gap-3 mb-2">
                     <i class="fas fa-exclamation-triangle text-red-500 mt-1"></i>
                     <div>
                         <div class="text-xs font-bold text-red-400 uppercase tracking-wide">Person of Interest</div>
@@ -376,9 +504,11 @@
                         <div class="text-[10px] uppercase text-gray-500 font-bold">Safety Analysis</div>
                         <div id="rot-conf" class="text-[9px] font-mono text-gray-600"></div>
                     </div>
-                    <div id="rotector-status" class="p-2 rounded border text-xs font-mono font-bold mb-2 text-center"></div>
+                    <div id="rotector-status" class="p-2 rounded border text-xs font-mono font-bold mb-2 text-center">
+                    </div>
                     <div class="w-full bg-[#222] h-1 rounded-full overflow-hidden mb-2">
-                        <div id="rot-risk-bar" class="h-full transition-all duration-1000 bg-green-500" style="width: 0%"></div>
+                        <div id="rot-risk-bar" class="h-full transition-all duration-1000 bg-green-500"
+                            style="width: 0%"></div>
                     </div>
                     <div id="rotector-reasons" class="space-y-1"></div>
                 </div>
@@ -394,7 +524,7 @@
                         <div id="card-groups" class="text-sm font-bold text-white">...</div>
                     </div>
                 </div>
-                
+
                 <!-- Dates -->
                 <div class="text-xs text-gray-400 flex justify-between border-t border-[#222] pt-2">
                     <span>Joined: <span id="card-joined" class="text-white font-mono">...</span></span>
@@ -403,8 +533,8 @@
 
                 <!-- Ban Info -->
                 <div id="ban-info-block" class="hidden bg-red-900/10 border border-red-900/30 p-2 rounded">
-                     <div class="text-[10px] text-red-400 font-bold uppercase mb-1">Ban Reason</div>
-                     <div id="ban-reason" class="text-xs text-red-200 break-words"></div>
+                    <div class="text-[10px] text-red-400 font-bold uppercase mb-1">Ban Reason</div>
+                    <div id="ban-reason" class="text-xs text-red-200 break-words"></div>
                 </div>
 
                 <!-- Ring Data -->
@@ -418,19 +548,23 @@
                     <button id="btn-add-net" class="min-btn w-full text-xs">
                         <i class="fas fa-plus-circle"></i> Add To Network
                     </button>
-                    <a id="btn-view-lookup" href="#" target="_blank" class="min-btn-outline w-full text-xs justify-center">
+                    <a id="btn-view-lookup" href="#" target="_blank"
+                        class="min-btn-outline w-full text-xs justify-center">
                         <i class="fas fa-external-link-alt"></i> View Full Lookup
                     </a>
                     <div id="poi-actions" class="hidden pt-2 border-t border-[#333]">
-                        <button id="btn-mark-poi" class="min-btn-outline w-full text-xs justify-center text-red-400 hover:bg-red-900/20">
+                        <button id="btn-mark-poi"
+                            class="min-btn-outline w-full text-xs justify-center text-red-400 hover:bg-red-900/20">
                             <i class="fas fa-exclamation-triangle"></i> Mark as POI
                         </button>
-                        <button id="btn-unmark-poi" class="min-btn-outline w-full text-xs justify-center text-green-400 hover:bg-green-900/20 hidden">
+                        <button id="btn-unmark-poi"
+                            class="min-btn-outline w-full text-xs justify-center text-green-400 hover:bg-green-900/20 hidden">
                             <i class="fas fa-check"></i> Unmark POI
                         </button>
                     </div>
                     <div id="ring-actions" class="hidden pt-2">
-                        <button id="btn-ring-assign" class="min-btn-outline w-full text-xs justify-center text-blue-400 hover:bg-blue-900/20">
+                        <button id="btn-ring-assign"
+                            class="min-btn-outline w-full text-xs justify-center text-blue-400 hover:bg-blue-900/20">
                             <i class="fas fa-link"></i> Manage Rings
                         </button>
                     </div>
@@ -454,9 +588,11 @@
     <div id="modal-poi" class="modal-backdrop">
         <div class="min-panel p-6 w-full max-w-md bg-black shadow-2xl">
             <h3 class="text-lg font-bold mb-1 text-red-500">Mark Subject</h3>
-            <textarea id="poi-reason" class="min-input w-full h-24 resize-none text-sm p-3 mb-4" placeholder="Reason..."></textarea>
+            <textarea id="poi-reason" class="min-input w-full h-24 resize-none text-sm p-3 mb-4"
+                placeholder="Reason..."></textarea>
             <div class="flex gap-2">
-                <button id="btn-poi-confirm" class="min-btn bg-red-600 text-white border-none hover:bg-red-700 flex-1">Confirm</button>
+                <button id="btn-poi-confirm"
+                    class="min-btn bg-red-600 text-white border-none hover:bg-red-700 flex-1">Confirm</button>
                 <button onclick="closeModals()" class="min-btn-outline flex-1">Cancel</button>
             </div>
         </div>
@@ -467,7 +603,7 @@
             <h3 class="text-lg font-bold mb-1 text-blue-500">Ring Management</h3>
             <div id="ring-modal-list" class="space-y-2 max-h-48 overflow-y-auto custom-scroll mb-4 mt-2"></div>
             <div class="flex gap-2 border-t border-[#333] pt-3">
-                 <button onclick="closeModals()" class="min-btn-outline flex-1">Close</button>
+                <button onclick="closeModals()" class="min-btn-outline flex-1">Close</button>
             </div>
         </div>
     </div>
@@ -503,6 +639,25 @@
             setupEventHandlers();
         });
 
+        function sendNotification(title, message, isError = false) {
+            // Check if running inside the OS (iframe)
+            if (window.parent !== window) {
+                window.parent.postMessage({
+                    type: 'SAIKOU_NOTIFICATION',
+                    payload: {
+                        title: title,
+                        message: message,
+                        appName: 'Netvis'
+                    }
+                }, '*');
+            }
+
+            // Fallback for standalone mode (only alert on errors to be less intrusive)
+            if (window.parent === window && isError) {
+                alert(`${title}: ${message}`);
+            }
+        }
+
         function resizeGraph() {
             const container = document.querySelector('.graph-wrapper');
             width = container.clientWidth;
@@ -516,8 +671,8 @@
 
         function setupEventHandlers() {
             document.getElementById('add-user-btn').onclick = addSeed;
-            document.getElementById('user-input').addEventListener('keydown', (e) => { if(e.key === 'Enter') addSeed(); });
-            
+            document.getElementById('user-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') addSeed(); });
+
             document.getElementById('generate-btn').onclick = generateGraph;
             document.getElementById('clear-btn').onclick = () => {
                 state.seeds.clear(); renderSeeds(); svg.selectAll("*").remove(); closeCard();
@@ -530,7 +685,7 @@
                 localStorage.removeItem('sdis_user'); localStorage.removeItem('sdis_token');
                 renderAuthUI();
                 // Clear ring links from graph on logout if desired
-                if(state.graphData.nodes.length > 0) refreshGraphRings();
+                if (state.graphData.nodes.length > 0) refreshGraphRings();
             };
 
             document.getElementById('btn-mark-poi').onclick = () => openModal('modal-poi');
@@ -542,7 +697,7 @@
                 const dl = document.createElement('a'); dl.setAttribute("href", dataStr); dl.setAttribute("download", "netvis.json"); dl.click();
             };
             document.getElementById('import-file').onchange = (e) => {
-                const f = e.target.files[0]; if(!f) return;
+                const f = e.target.files[0]; if (!f) return;
                 const r = new FileReader(); r.onload = (ev) => { state.graphData = JSON.parse(ev.target.result); renderD3(state.graphData); };
                 r.readAsText(f);
             };
@@ -557,7 +712,7 @@
         function addSeed() {
             const inp = document.getElementById('user-input');
             const val = inp.value.trim();
-            if(!val || state.seeds.size >= MAX_SEEDS) return;
+            if (!val || state.seeds.size >= MAX_SEEDS) return;
             state.seeds.add(val); inp.value = ''; renderSeeds();
         }
 
@@ -573,7 +728,7 @@
         window.removeSeed = (s) => { state.seeds.delete(s); renderSeeds(); };
 
         async function generateGraph() {
-            if(state.seeds.size === 0) return;
+            if (state.seeds.size === 0) return;
             const ov = document.getElementById('loading-overlay'); ov.classList.remove('hidden');
             const bar = document.getElementById('loading-bar'); bar.style.width = '10%';
             state.rotectorData.clear();
@@ -584,7 +739,7 @@
                     body: JSON.stringify({ users: Array.from(state.seeds).join(',') })
                 });
                 const data = await r.json();
-                if(!data.success) throw new Error(data.error);
+                if (!data.success) throw new Error(data.error);
 
                 state.graphData = data;
                 state.graphData.nodes = state.graphData.nodes.filter(n => n.id > 0);
@@ -597,9 +752,10 @@
 
                 bar.style.width = '90%';
                 checkRotectorSafety(state.graphData.nodes);
-
-            } catch(e) { alert("Error: " + e.message); }
-            finally { bar.style.width = '100%'; setTimeout(() => { ov.classList.add('hidden'); bar.style.width='0%'; }, 500); }
+                // --- ADD THIS LINE HERE ---
+                sendNotification('Graph Generated', `Successfully visualized ${state.graphData.nodes.length} nodes and ${state.graphData.links.length} connections.`);
+            } catch (e) { sendNotification('Generation Failed', e.message, true); }
+            finally { bar.style.width = '100%'; setTimeout(() => { ov.classList.add('hidden'); bar.style.width = '0%'; }, 500); }
         }
 
         function injectRingLinks() {
@@ -611,47 +767,47 @@
             state.rings.forEach(ring => {
                 if (!ring.members || ring.members.length < 2) return;
                 const visibleMembers = ring.members.map(m => String(m.userId)).filter(id => nodeMap.has(id));
-                
+
                 for (let i = 0; i < visibleMembers.length - 1; i++) {
-                    newLinks.push({ source: parseInt(visibleMembers[i]), target: parseInt(visibleMembers[i+1]), type: 'ring' });
+                    newLinks.push({ source: parseInt(visibleMembers[i]), target: parseInt(visibleMembers[i + 1]), type: 'ring' });
                 }
                 if (visibleMembers.length > 2) {
-                    newLinks.push({ source: parseInt(visibleMembers[visibleMembers.length-1]), target: parseInt(visibleMembers[0]), type: 'ring' });
+                    newLinks.push({ source: parseInt(visibleMembers[visibleMembers.length - 1]), target: parseInt(visibleMembers[0]), type: 'ring' });
                 }
             });
-            
+
             state.graphData.links.push(...newLinks);
         }
-        
+
         // Updates links when ring data changes (e.g. after login) without full regen
         function refreshGraphRings() {
-            if(!state.graphData.nodes || state.graphData.nodes.length === 0) return;
-            
+            if (!state.graphData.nodes || state.graphData.nodes.length === 0) return;
+
             // Filter out existing ring links
             state.graphData.links = state.graphData.links.filter(l => l.type !== 'ring');
-            
+
             // Add new ones
             injectRingLinks();
-            
+
             // Re-render D3 (safely handles mix of Object references and new IDs)
             renderD3(state.graphData);
         }
 
         async function checkRotectorSafety(nodes) {
             const uniqueIds = [...new Set(nodes.map(n => parseInt(n.id, 10)))]
-                .filter(id => !isNaN(id) && id > 0); 
-            
+                .filter(id => !isNaN(id) && id > 0);
+
             const BATCH = 100;
-            for (let i=0; i<uniqueIds.length; i+=BATCH) {
+            for (let i = 0; i < uniqueIds.length; i += BATCH) {
                 try {
-                    const batch = uniqueIds.slice(i, i+BATCH);
-                    if(batch.length === 0) continue;
-                    
-                    const r = await fetch(ROTECTOR_API, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ids: batch}) });
-                    
-                    if(r.ok) {
+                    const batch = uniqueIds.slice(i, i + BATCH);
+                    if (batch.length === 0) continue;
+
+                    const r = await fetch(ROTECTOR_API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids: batch }) });
+
+                    if (r.ok) {
                         const res = await r.json();
-                        if(res.success && res.data) {
+                        if (res.success && res.data) {
                             Object.values(res.data).forEach(u => {
                                 if (u.flagType > 0) state.rotectorData.set(String(u.id), u);
                             });
@@ -659,42 +815,42 @@
                     }
                     updateNodeBadges();
                     await new Promise(r => setTimeout(r, 250));
-                } catch(e) { console.warn("Rotector Error:", e); }
+                } catch (e) { console.warn("Rotector Error:", e); }
             }
         }
 
         function updateNodeBadges() {
-            svg.selectAll(".node").each(function(d) {
+            svg.selectAll(".node").each(function (d) {
                 const node = d3.select(this);
                 const safety = state.rotectorData.get(String(d.id));
                 const isPOI = d.isPOI;
-                
+
                 node.selectAll(".badge-group").remove();
                 node.selectAll(".safety-ring-extra").remove();
 
                 const badges = [];
 
                 if (isPOI) {
-                    badges.push({ type: 'poi', color: '#ef4444', icon: '\uf12a' }); 
+                    badges.push({ type: 'poi', color: '#ef4444', icon: '\uf12a' });
                 }
 
                 if (safety && safety.flagType > 0) {
                     const color = safety.flagType === 2 ? "#ef4444" : "#eab308";
                     const icon = "\uf3ed"; // Shield
                     badges.push({ type: 'rot', color: color, icon: icon });
-                    
+
                     node.insert("circle", "image").attr("class", "safety-ring-extra")
                         .attr("r", 18).attr("fill", "none").attr("stroke", color).attr("stroke-width", 2).attr("stroke-dasharray", "3,2");
                 }
 
                 if (badges.length > 0) {
                     const badgeGroup = node.append("g").attr("class", "badge-group");
-                    
+
                     badges.forEach((badge, index) => {
                         let bx = 12, by = -12;
                         if (badges.length === 2) {
-                            bx = (index === 0) ? 8 : 18; 
-                            by = -14; 
+                            bx = (index === 0) ? 8 : 18;
+                            by = -14;
                         }
 
                         const bg = badgeGroup.append("g").attr("transform", `translate(${bx}, ${by})`);
@@ -716,7 +872,7 @@
             simulation = d3.forceSimulation(data.nodes)
                 .force("link", d3.forceLink(data.links).id(d => d.id).distance(80))
                 .force("charge", d3.forceManyBody().strength(-300))
-                .force("center", d3.forceCenter(width/2, height/2))
+                .force("center", d3.forceCenter(width / 2, height / 2))
                 .force("collide", d3.forceCollide().radius(25));
 
             const link = g.append("g").selectAll("line").data(data.links).join("line")
@@ -726,9 +882,9 @@
                 .attr("id", d => `node-${d.id}`)
                 .attr("class", d => `node ${d.isBanned ? 'banned' : ''} ${state.seeds.has(d.name) ? 'seed-user' : ''}`)
                 .call(d3.drag().on("start", dragStart).on("drag", dragging).on("end", dragEnd));
-            
+
             // Hover Interaction Logic (Highlighting & Tooltip)
-            nodeGroup.on("mouseover", function(event, d) {
+            nodeGroup.on("mouseover", function (event, d) {
                 // 1. Identify Connected Nodes
                 const connectedIds = new Set();
                 connectedIds.add(d.id);
@@ -744,21 +900,21 @@
                 // 3. Show Tooltip
                 const tooltip = d3.select("#graph-tooltip");
                 tooltip.style("opacity", 1)
-                       .html(`<strong>${d.displayName || d.name}</strong><br/><span style="color:#aaa;font-size:9px">ID: ${d.id}</span>`)
-                       .style("left", (event.pageX + 10) + "px")
-                       .style("top", (event.pageY - 10) + "px");
+                    .html(`<strong>${d.displayName || d.name}</strong><br/><span style="color:#aaa;font-size:9px">ID: ${d.id}</span>`)
+                    .style("left", (event.pageX + 10) + "px")
+                    .style("top", (event.pageY - 10) + "px");
 
-            }).on("mousemove", function(event) {
+            }).on("mousemove", function (event) {
                 d3.select("#graph-tooltip")
                     .style("left", (event.pageX + 10) + "px")
                     .style("top", (event.pageY + 10) + "px");
-            }).on("mouseout", function() {
+            }).on("mouseout", function () {
                 // Reset Tooltip
                 d3.select("#graph-tooltip").style("opacity", 0);
-                
+
                 // Check if search is active
                 const searchVal = document.getElementById('node-search').value.toLowerCase();
-                
+
                 if (searchVal) {
                     // Re-apply search filter
                     nodeGroup.style('opacity', d => {
@@ -775,40 +931,40 @@
             });
 
             // 1. Background
-            nodeGroup.append("circle").attr("class", "node-background").attr("r", 15); 
-            
+            nodeGroup.append("circle").attr("class", "node-background").attr("r", 15);
+
             // 2. Image
             nodeGroup.append("image").attr("href", d => d.avatarUrl || 'https://placehold.co/30x30/111/FFF?text=?')
                 .attr("x", -15).attr("y", -15).attr("width", 30).attr("height", 30)
-                .attr("clip-path", "circle(15px at 15px 15px)"); 
-            
+                .attr("clip-path", "circle(15px at 15px 15px)");
+
             // 3. Outline
             nodeGroup.append("circle").attr("class", "node-outline")
-                .attr("r", 15).attr("fill", "transparent") 
-                .attr("stroke-width", 1.5); 
+                .attr("r", 15).attr("fill", "transparent")
+                .attr("stroke-width", 1.5);
 
             updateNodeBadges();
 
             simulation.on("tick", () => {
-                link.attr("x1", d=>d.source.x).attr("y1", d=>d.source.y).attr("x2", d=>d.target.x).attr("y2", d=>d.target.y);
+                link.attr("x1", d => d.source.x).attr("y1", d => d.source.y).attr("x2", d => d.target.x).attr("y2", d => d.target.y);
                 nodeGroup.attr("transform", d => `translate(${d.x},${d.y})`);
             });
 
-            d3.select("#charge-slider").on("input", function() { 
-                simulation.force("charge").strength(+this.value); simulation.alpha(0.3).restart(); 
+            d3.select("#charge-slider").on("input", function () {
+                simulation.force("charge").strength(+this.value); simulation.alpha(0.3).restart();
                 document.getElementById('val-charge').textContent = this.value;
             });
-            d3.select("#dist-slider").on("input", function() { 
-                simulation.force("link").distance(+this.value); simulation.alpha(0.3).restart(); 
+            d3.select("#dist-slider").on("input", function () {
+                simulation.force("link").distance(+this.value); simulation.alpha(0.3).restart();
                 document.getElementById('val-dist').textContent = this.value;
             });
-            
+
             document.getElementById('node-search').addEventListener('input', (e) => {
                 const t = e.target.value.toLowerCase();
                 let c = 0;
                 nodeGroup.style('opacity', d => {
                     const m = d.name.toLowerCase().includes(t) || String(d.id).includes(t);
-                    if(m) c++; return !t || m ? 1 : 0.1;
+                    if (m) c++; return !t || m ? 1 : 0.1;
                 });
                 link.style('opacity', !t ? 0.6 : 0.05);
                 document.getElementById('search-count').innerText = c;
@@ -833,12 +989,12 @@
             if (!event.active) simulation.alphaTarget(0);
             d.fx = null;
             d.fy = null;
-            
+
             // Calculate distance moved
             const dx = event.x - d.dragStartX;
             const dy = event.y - d.dragStartY;
-            const dist = Math.sqrt(dx*dx + dy*dy);
-            
+            const dist = Math.sqrt(dx * dx + dy * dy);
+
             // INCREASED THRESHOLD:
             // If moved less than 6 pixels (was 3), treat as click.
             // This prevents "micro-drags" from failing to register as clicks.
@@ -856,17 +1012,17 @@
             // 1. Immediate UI Feedback
             card.classList.add('active');
             loader.classList.remove('hidden'); // Show scanning bar
-            
+
             // 2. Set synchronous data (what we already know)
             document.getElementById('card-name').textContent = d.displayName || d.name;
             document.getElementById('card-id').textContent = `ID: ${d.id}`;
             document.getElementById('card-avatar').src = d.avatarUrl || 'https://placehold.co/40x40/111/FFF?text=?';
             document.getElementById('btn-view-lookup').href = `lookup.html?lookup=${d.id}`;
-            
+
             // 3. Reset asynchronous fields to loading state
             // Explicitly call updateCardStats with 'd' to reset fields to "..."
             updateCardStats(d);
-            
+
             document.getElementById('poi-alert-block').classList.add('hidden');
             document.getElementById('rotector-block').classList.add('hidden');
             document.getElementById('ban-info-block').classList.add('hidden');
@@ -876,7 +1032,7 @@
             const exists = state.seeds.has(d.name) || state.seeds.has(String(d.id));
             btnAdd.textContent = exists ? "Already In Network" : "Add To Network";
             btnAdd.disabled = exists;
-            btnAdd.onclick = () => { if(!exists) { state.seeds.add(d.name); renderSeeds(); btnAdd.textContent="Already In Network"; btnAdd.disabled=true; } };
+            btnAdd.onclick = () => { if (!exists) { state.seeds.add(d.name); renderSeeds(); btnAdd.textContent = "Already In Network"; btnAdd.disabled = true; } };
 
             // 5. PARALLEL: Start Async Checks Immediately (POI, Rotector, Auth-based UI)
             // We do NOT wait for the profile fetch to check these.
@@ -885,8 +1041,8 @@
             // Auth specific checks (local info, doesn't need fetch)
             const poiDiv = document.getElementById('poi-actions');
             const ringDiv = document.getElementById('ring-actions');
-            
-            if(state.user) {
+
+            if (state.user) {
                 poiDiv.classList.remove('hidden');
                 ringDiv.classList.remove('hidden');
                 document.getElementById('btn-mark-poi').classList.toggle('hidden', d.isPOI);
@@ -906,23 +1062,23 @@
                     if (!state.nodeCache.has(d.id)) {
                         const r = await fetch(`${API_WORKER}?lookup=${d.id}`);
                         const res = await r.json();
-                        if(res.success) {
+                        if (res.success) {
                             state.nodeCache.set(d.id, res.profile);
                             full = res.profile;
                         }
                     } else full = state.nodeCache.get(d.id);
-                    
+
                     // Only update if user hasn't clicked another node while fetching
-                    if(state.selectedNode && state.selectedNode.id === d.id) {
+                    if (state.selectedNode && state.selectedNode.id === d.id) {
                         updateCardStats(full);
                     }
-                } catch(e) { console.warn("Deep fetch error", e); }
+                } catch (e) { console.warn("Deep fetch error", e); }
             })();
 
             // Hide loader when the profile fetch is done (or failed)
             profilePromise.finally(() => {
-                if(state.selectedNode && state.selectedNode.id === d.id) {
-                    setTimeout(() => loader.classList.add('hidden'), 300); 
+                if (state.selectedNode && state.selectedNode.id === d.id) {
+                    setTimeout(() => loader.classList.add('hidden'), 300);
                 }
             });
         }
@@ -934,16 +1090,16 @@
                 const poiReason = document.getElementById('poi-reason-display');
                 poiReason.textContent = "Loading details...";
                 try {
-                    const r = await fetch(`${DATA_WORKER_URL}/poi/${d.id}`, {headers:{'Authorization':`Bearer ${state.token}`}});
+                    const r = await fetch(`${DATA_WORKER_URL}/poi/${d.id}`, { headers: { 'Authorization': `Bearer ${state.token}` } });
                     const res = await r.json();
-                    if(state.selectedNode && state.selectedNode.id === d.id && res.success && res.data) {
+                    if (state.selectedNode && state.selectedNode.id === d.id && res.success && res.data) {
                         poiReason.textContent = res.data.reason;
                     }
-                } catch(e){ /* ignore */ }
+                } catch (e) { /* ignore */ }
             }
 
             // Ban Info
-            if(d.isBanned && d.banReason) {
+            if (d.isBanned && d.banReason) {
                 document.getElementById('ban-info-block').classList.remove('hidden');
                 document.getElementById('ban-reason').textContent = d.banReason;
             }
@@ -955,10 +1111,10 @@
         function updateCardStats(data) {
             document.getElementById('card-friends').textContent = data.friendCount ?? '...';
             document.getElementById('card-groups').textContent = data.groupCount ?? '...';
-            if(data.created) {
+            if (data.created) {
                 const date = new Date(data.created);
                 document.getElementById('card-joined').textContent = date.toLocaleDateString();
-                document.getElementById('card-age').textContent = Math.floor((new Date() - date)/(86400000)) + ' days';
+                document.getElementById('card-age').textContent = Math.floor((new Date() - date) / (86400000)) + ' days';
             } else {
                 document.getElementById('card-joined').textContent = '...';
                 document.getElementById('card-age').textContent = '...';
@@ -968,45 +1124,45 @@
         function renderRotectorInfo(uid) {
             const s = state.rotectorData.get(String(uid));
             const rBlock = document.getElementById('rotector-block');
-            
-            if(s && s.flagType > 0) { 
+
+            if (s && s.flagType > 0) {
                 rBlock.classList.remove('hidden');
                 const isUnsafe = s.flagType === 2;
-                const conf = (typeof s.confidence === 'number') ? (s.confidence*100).toFixed(0) : '--';
-                
+                const conf = (typeof s.confidence === 'number') ? (s.confidence * 100).toFixed(0) : '--';
+
                 document.getElementById('rot-conf').textContent = `CONF: ${conf}%`;
-                
+
                 const st = document.getElementById('rotector-status');
-                st.className = `p-2 rounded border text-xs font-mono font-bold mb-2 text-center ${isUnsafe?'bg-red-900/20 border-red-800 text-red-500':'bg-yellow-900/20 border-yellow-800 text-yellow-500'}`;
+                st.className = `p-2 rounded border text-xs font-mono font-bold mb-2 text-center ${isUnsafe ? 'bg-red-900/20 border-red-800 text-red-500' : 'bg-yellow-900/20 border-yellow-800 text-yellow-500'}`;
                 st.innerHTML = isUnsafe ? `<i class="fas fa-shield-alt mr-2"></i>THREAT DETECTED` : `<i class="fas fa-exclamation-triangle mr-2"></i>FLAGGED`;
-                
+
                 const bar = document.getElementById('rot-risk-bar');
-                bar.className = `h-full transition-all duration-1000 ${isUnsafe?'bg-red-600':'bg-yellow-500'}`;
+                bar.className = `h-full transition-all duration-1000 ${isUnsafe ? 'bg-red-600' : 'bg-yellow-500'}`;
                 bar.style.width = isUnsafe ? '100%' : '50%';
 
                 const reas = document.getElementById('rotector-reasons'); reas.innerHTML = '';
-                if(s.reasons) Object.entries(s.reasons).forEach(([k,v]) => {
+                if (s.reasons) Object.entries(s.reasons).forEach(([k, v]) => {
                     reas.innerHTML += `<div class="bg-[#111] p-2 rounded border border-[#222] text-[10px] text-gray-400"><span class="text-white font-bold block mb-1">${k}</span>${v.message}</div>`;
                 });
             }
         }
 
-        function closeCard() { 
-            document.getElementById('node-detail-card').classList.remove('active'); 
+        function closeCard() {
+            document.getElementById('node-detail-card').classList.remove('active');
             state.selectedNode = null; // Clear selection
         }
 
         // --- Auth & Rings ---
         function initAuth() {
             const u = localStorage.getItem('sdis_user'), t = localStorage.getItem('sdis_token');
-            if(u && t) { state.user = JSON.parse(u); state.token = t; }
+            if (u && t) { state.user = JSON.parse(u); state.token = t; }
             renderAuthUI();
         }
         function renderAuthUI() {
             const is = !!state.user;
             document.getElementById('btn-login').classList.toggle('hidden', is);
             document.getElementById('user-display').classList.toggle('hidden', !is);
-            if(is) {
+            if (is) {
                 document.getElementById('user-name').textContent = state.user.displayName || state.user.username;
                 document.getElementById('user-role').textContent = state.user.sdisRole || "Operative";
                 document.getElementById('user-avatar').src = state.user.avatarUrl || `https://placehold.co/32x32/333/FFF?text=${state.user.username[0]}`;
@@ -1015,39 +1171,39 @@
         }
         async function login(c) {
             try {
-                const r = await fetch(`${AUTH_WORKER}/login`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({codePhrase:c})});
+                const r = await fetch(`${AUTH_WORKER}/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ codePhrase: c }) });
                 const d = await r.json();
-                if(d.success) {
+                if (d.success) {
                     state.user = d.user; state.token = d.token;
                     localStorage.setItem('sdis_user', JSON.stringify(d.user)); localStorage.setItem('sdis_token', d.token);
                     closeModals(); renderAuthUI();
                 } else alert(d.error);
-            } catch(e){alert("Connection Error");}
+            } catch (e) { alert("Connection Error"); }
         }
 
         async function fetchRings() {
-            if(!state.user) return;
+            if (!state.user) return;
             try {
-                const r = await fetch(`${AUTH_WORKER}/rings`, {headers:{'Authorization':`Bearer ${state.token}`}});
+                const r = await fetch(`${AUTH_WORKER}/rings`, { headers: { 'Authorization': `Bearer ${state.token}` } });
                 const d = await r.json();
                 state.rings = d.rings || [];
                 // Refresh graph visuals if graph is loaded to show new rings
-                if(state.graphData.nodes.length > 0) refreshGraphRings();
-            } catch(e){console.error(e);}
+                if (state.graphData.nodes.length > 0) refreshGraphRings();
+            } catch (e) { console.error(e); }
         }
 
         function updateRingCard(uid) {
             const c = document.getElementById('card-rings');
             const l = document.getElementById('ring-list-card');
-            
+
             const userRings = state.rings.filter(r => r.members && r.members.some(m => String(m.userId) === String(uid)));
-            
-            if(userRings.length > 0) {
+
+            if (userRings.length > 0) {
                 c.classList.remove('hidden');
                 l.innerHTML = userRings.map(r => {
                     const member = r.members.find(m => String(m.userId) === String(uid));
                     const role = member ? (member.role || 'Member') : 'Member';
-                    
+
                     let roleStyle = 'bg-gray-800 text-gray-300 border-gray-600';
                     let roleText = 'MEMBER';
                     if (role.toLowerCase() === 'leader') { roleStyle = 'bg-red-900 text-red-200 border-red-700'; roleText = 'LEADER'; }
@@ -1070,7 +1226,7 @@
                     return `
                         <div class="flex items-center justify-between p-2 border border-[#333] rounded bg-[#111] mb-1">
                             <span class="text-xs text-white">${r.name}</span>
-                            <button onclick="toggleRing('${r.id}', '${uid}', ${isMem})" class="text-[10px] px-2 py-1 rounded border ${isMem ? 'border-red-500 text-red-500' : 'border-green-500 text-green-500'}">${isMem?'REMOVE':'ADD'}</button>
+                            <button onclick="toggleRing('${r.id}', '${uid}', ${isMem})" class="text-[10px] px-2 py-1 rounded border ${isMem ? 'border-red-500 text-red-500' : 'border-green-500 text-green-500'}">${isMem ? 'REMOVE' : 'ADD'}</button>
                         </div>`;
                 }).join('');
                 openModal('modal-ring');
@@ -1080,10 +1236,10 @@
         async function toggleRing(rid, uid, isRem) {
             try {
                 const method = isRem ? 'DELETE' : 'POST';
-                const body = isRem ? { userIds:[uid] } : { members:[{userId:uid, username:state.selectedNode.name}] };
-                await fetch(`${AUTH_WORKER}/rings/${rid}/members`, { method, headers:{'Content-Type':'application/json','Authorization':`Bearer ${state.token}`}, body:JSON.stringify(body)});
+                const body = isRem ? { userIds: [uid] } : { members: [{ userId: uid, username: state.selectedNode.name }] };
+                await fetch(`${AUTH_WORKER}/rings/${rid}/members`, { method, headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${state.token}` }, body: JSON.stringify(body) });
                 await fetchRings(); updateRingCard(uid); document.getElementById('btn-ring-assign').click();
-            } catch(e){alert("Failed");}
+            } catch (e) { alert("Failed"); }
         }
 
         // --- POI ---
@@ -1091,25 +1247,29 @@
 
         async function submitPOI() {
             const r = document.getElementById('poi-reason').value;
-            if(!r) return;
+            if (!r) return;
             try {
                 const n = state.selectedNode;
                 await fetch(`${DATA_WORKER_URL}/poi`, {
-                    method:'POST', headers:{'Content-Type':'application/json', 'Authorization':`Bearer ${state.token}`},
+                    method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${state.token}` },
                     body: JSON.stringify({ userId: n.id, username: n.name, displayName: n.displayName, reason: r, markedBy: state.user.username, timestamp: new Date(), avatarUrl: n.avatarUrl })
                 });
-                n.isPOI = true; 
+                n.isPOI = true;
                 updateNodeBadges(); // Update graph visuals immediately
-                showCard(n); 
+                showCard(n);
                 closeModals();
-            } catch(e){alert("Failed: " + e.message);}
+                sendNotification("Success", "POI marked successfully");
+            } catch (e) { sendNotification("Failed", e.message, true); }
         }
         async function unmarkPOI() {
-            if(!confirm("Revoke status?")) return;
-            try { await fetch(`${DATA_WORKER_URL}/poi/${state.selectedNode.id}`, {method:'DELETE', headers:{'Authorization':`Bearer ${state.token}`}}); 
-            state.selectedNode.isPOI = false; 
-            updateNodeBadges(); // Update graph visuals immediately
-            showCard(state.selectedNode); } catch(e){alert("Failed");}
+            if (!confirm("Revoke status?")) return;
+            try {
+                await fetch(`${DATA_WORKER_URL}/poi/${state.selectedNode.id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${state.token}` } });
+                state.selectedNode.isPOI = false;
+                updateNodeBadges(); // Update graph visuals immediately
+                showCard(state.selectedNode);
+                sendNotification("Success", "POI revoked successfully");
+            } catch (e) { sendNotification("Failed", e.message, true); }
         }
 
         // --- Utils ---
@@ -1117,4 +1277,5 @@
         function closeModals() { document.querySelectorAll('.modal-backdrop').forEach(m => m.classList.remove('active')); }
     </script>
 </body>
+
 </html>
