@@ -368,6 +368,11 @@
         // --- SMART CRACKER ---
         function attemptCrack(text) {
             if(!text || typeof text !== 'string' || text.length < 3) return null;
+            
+            // 1. Calculate Score of Original Text
+            // If the input is already coherent English, we shouldn't "crack" it into gibberish (Rail Fence hallucination)
+            const originalScore = scoreText(text);
+
             let attempts = [];
 
             // 1. Base64
@@ -417,6 +422,14 @@
                 best.hasThreat = true;
                 best.trigger = badTrigger;
                 return best;
+            }
+
+            // Anti-Hallucination Check:
+            // If the "cracked" text doesn't score significantly better than the original text, 
+            // assume the original text was the intended message (plain text).
+            // This is critical for Rail Fence which preserves letter frequency and often tricks the scorer.
+            if (originalScore > 10 && best.score < originalScore + 15) {
+                return null;
             }
 
             // Return best result if it looks like English/Language
@@ -1439,10 +1452,26 @@
             let decoded = null;
             const text = (profile.description || "").toLowerCase();
             
-            if (text.includes('discord') || text.includes('cord') || text.includes('snap') || text.includes('insta')) { 
+            // --- 1. Check Plain Text against BAD_WORDS ---
+            const plainBad = BAD_WORDS.find(w => text.includes(w));
+            if (plainBad) {
+                score -= 40;
+                reasons.negative.push({text: `Profanity/Threat detected (${plainBad})`, weight: -40, icon: "fa-exclamation-circle"});
+            }
+
+            // --- 2. Safer Solicitation Check ---
+            // Removed 'snap' standalone to fix "snap my router" false positive.
+            // Added stricter regex for short slang terms.
+            if (
+                text.includes('discord') || 
+                text.includes('snapchat') ||
+                /\b(cord|insta|kik|skype)\b/i.test(text) || 
+                /snap\s*(:|@|is|me)/i.test(text) // Only flag 'snap' if followed by a handle indicator
+            ) { 
                 score -= 20; 
                 reasons.negative.push({text: "Solicitation keywords detected", weight: -20, icon: "fa-comment-slash"}); 
             }
+
             if (text.includes('💿') && (text.includes('find') || text.includes('add') || text.includes('me'))) {
                 score -= 20;
                 reasons.negative.push({text: "Symbolic solicitation (💿) detected", weight: -20, icon: "fa-icons"});
@@ -1452,7 +1481,7 @@
                 reasons.negative.push({text: "Restricted Interaction (MDNI) Marker", weight: -50, icon: "fa-ban"}); 
             }
             
-            // NEW: Use advanced cracker instead of simple replacement
+            // --- 3. Decryption Engine Check ---
             const cracked = attemptCrack(profile.description);
             if (cracked) {
                 // Determine Badge Style based on Confidence
