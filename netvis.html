@@ -529,6 +529,8 @@
                 state.user = null; state.token = null;
                 localStorage.removeItem('sdis_user'); localStorage.removeItem('sdis_token');
                 renderAuthUI();
+                // Clear ring links from graph on logout if desired
+                if(state.graphData.nodes.length > 0) refreshGraphRings();
             };
 
             document.getElementById('btn-mark-poi').onclick = () => openModal('modal-poi');
@@ -619,6 +621,20 @@
             });
             
             state.graphData.links.push(...newLinks);
+        }
+        
+        // Updates links when ring data changes (e.g. after login) without full regen
+        function refreshGraphRings() {
+            if(!state.graphData.nodes || state.graphData.nodes.length === 0) return;
+            
+            // Filter out existing ring links
+            state.graphData.links = state.graphData.links.filter(l => l.type !== 'ring');
+            
+            // Add new ones
+            injectRingLinks();
+            
+            // Re-render D3 (safely handles mix of Object references and new IDs)
+            renderD3(state.graphData);
         }
 
         async function checkRotectorSafety(nodes) {
@@ -737,10 +753,25 @@
                     .style("left", (event.pageX + 10) + "px")
                     .style("top", (event.pageY + 10) + "px");
             }).on("mouseout", function() {
-                // Reset
-                svg.selectAll(".node").style("opacity", 1);
-                svg.selectAll(".link").style("stroke-opacity", 0.6);
+                // Reset Tooltip
                 d3.select("#graph-tooltip").style("opacity", 0);
+                
+                // Check if search is active
+                const searchVal = document.getElementById('node-search').value.toLowerCase();
+                
+                if (searchVal) {
+                    // Re-apply search filter
+                    nodeGroup.style('opacity', d => {
+                        const m = d.name.toLowerCase().includes(searchVal) || String(d.id).includes(searchVal);
+                        return m ? 1 : 0.1;
+                    });
+                    // Keep links dimmed if search is active
+                    link.style("stroke-opacity", 0.05).style("opacity", 0.05);
+                } else {
+                    // Reset to default (All visible)
+                    svg.selectAll(".node").style("opacity", 1);
+                    svg.selectAll(".link").style("stroke-opacity", 0.6).style("opacity", 0.6);
+                }
             });
 
             // 1. Background
@@ -817,7 +848,7 @@
         }
 
         // --- Card & Logic ---
-        async function showCard(d) {
+        function showCard(d) {
             state.selectedNode = d;
             const card = document.getElementById('node-detail-card');
             const loader = document.getElementById('card-loader');
@@ -833,10 +864,9 @@
             document.getElementById('btn-view-lookup').href = `lookup.html?lookup=${d.id}`;
             
             // 3. Reset asynchronous fields to loading state
-            document.getElementById('card-friends').textContent = '...';
-            document.getElementById('card-groups').textContent = '...';
-            document.getElementById('card-joined').textContent = '...';
-            document.getElementById('card-age').textContent = '...';
+            // Explicitly call updateCardStats with 'd' to reset fields to "..."
+            updateCardStats(d);
+            
             document.getElementById('poi-alert-block').classList.add('hidden');
             document.getElementById('rotector-block').classList.add('hidden');
             document.getElementById('ban-info-block').classList.add('hidden');
@@ -848,30 +878,9 @@
             btnAdd.disabled = exists;
             btnAdd.onclick = () => { if(!exists) { state.seeds.add(d.name); renderSeeds(); btnAdd.textContent="Already In Network"; btnAdd.disabled=true; } };
 
-            // 5. Fetch Async Data (Deep Profile)
-            let full = d;
-            try {
-                if (!state.nodeCache.has(d.id)) {
-                    const r = await fetch(`${API_WORKER}?lookup=${d.id}`);
-                    const res = await r.json();
-                    if(res.success) {
-                        state.nodeCache.set(d.id, res.profile);
-                        full = res.profile;
-                    }
-                } else full = state.nodeCache.get(d.id);
-                
-                // Only update if user hasn't clicked another node while fetching
-                if(state.selectedNode && state.selectedNode.id === d.id) {
-                    updateCardStats(full);
-                    checkExtras(d);
-                }
-            } catch(e) { console.warn("Deep fetch error", e); }
-            finally {
-                // Hide loader only if we are still on the same node
-                if(state.selectedNode && state.selectedNode.id === d.id) {
-                    setTimeout(() => loader.classList.add('hidden'), 300); // Small delay for smoothness
-                }
-            }
+            // 5. PARALLEL: Start Async Checks Immediately (POI, Rotector, Auth-based UI)
+            // We do NOT wait for the profile fetch to check these.
+            checkExtras(d);
 
             // Auth specific checks (local info, doesn't need fetch)
             const poiDiv = document.getElementById('poi-actions');
@@ -888,6 +897,34 @@
                 ringDiv.classList.add('hidden');
                 document.getElementById('card-rings').classList.add('hidden');
             }
+
+            // 6. PARALLEL: Fetch Async Data (Deep Profile)
+            // This runs in background and updates stats when done.
+            const profilePromise = (async () => {
+                let full = d;
+                try {
+                    if (!state.nodeCache.has(d.id)) {
+                        const r = await fetch(`${API_WORKER}?lookup=${d.id}`);
+                        const res = await r.json();
+                        if(res.success) {
+                            state.nodeCache.set(d.id, res.profile);
+                            full = res.profile;
+                        }
+                    } else full = state.nodeCache.get(d.id);
+                    
+                    // Only update if user hasn't clicked another node while fetching
+                    if(state.selectedNode && state.selectedNode.id === d.id) {
+                        updateCardStats(full);
+                    }
+                } catch(e) { console.warn("Deep fetch error", e); }
+            })();
+
+            // Hide loader when the profile fetch is done (or failed)
+            profilePromise.finally(() => {
+                if(state.selectedNode && state.selectedNode.id === d.id) {
+                    setTimeout(() => loader.classList.add('hidden'), 300); 
+                }
+            });
         }
 
         async function checkExtras(d) {
@@ -922,6 +959,9 @@
                 const date = new Date(data.created);
                 document.getElementById('card-joined').textContent = date.toLocaleDateString();
                 document.getElementById('card-age').textContent = Math.floor((new Date() - date)/(86400000)) + ' days';
+            } else {
+                document.getElementById('card-joined').textContent = '...';
+                document.getElementById('card-age').textContent = '...';
             }
         }
 
@@ -991,6 +1031,8 @@
                 const r = await fetch(`${AUTH_WORKER}/rings`, {headers:{'Authorization':`Bearer ${state.token}`}});
                 const d = await r.json();
                 state.rings = d.rings || [];
+                // Refresh graph visuals if graph is loaded to show new rings
+                if(state.graphData.nodes.length > 0) refreshGraphRings();
             } catch(e){console.error(e);}
         }
 
