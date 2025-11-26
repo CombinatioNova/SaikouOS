@@ -7,6 +7,8 @@
     <!-- We keep the CDN for Tailwind to keep the setup simple without needing PostCSS configs -->
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Material Icons for Notifications -->
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons|Material+Icons+Outlined|Material+Icons+Round" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=JetBrains+Mono:wght@400;700&family=Montserrat:wght@400;600;800&display=swap" rel="stylesheet">
     <style>
         /* Custom scrollbar for webkit */
@@ -16,6 +18,21 @@
         .no-scrollbar {
             -ms-overflow-style: none;
             scrollbar-width: none;
+        }
+
+        /* Themed Scrollbar */
+        .custom-scroll::-webkit-scrollbar {
+            width: 6px;
+        }
+        .custom-scroll::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .custom-scroll::-webkit-scrollbar-thumb {
+            background: #333;
+            border-radius: 3px;
+        }
+        .custom-scroll::-webkit-scrollbar-thumb:hover {
+            background: #555;
         }
         
         /* Boot Screen Animations */
@@ -62,9 +79,49 @@
         .animate-slide-up {
             animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
         }
+
+        /* Gradient Border Animation */
+        @keyframes gradient-rotate {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+        
+        .gradient-border {
+            position: relative;
+            background: transparent; /* Let pseudo-elements handle the background */
+            border-radius: 0.75rem; /* rounded-xl */
+            /* Ensure content sits on top */
+            z-index: 100;
+        }
+        
+        /* The Glowing Gradient Border (Behind) */
+        .gradient-border::before {
+            content: "";
+            position: absolute;
+            inset: -2px; /* Sticks out to create border width */
+            z-index: -2;
+            background: linear-gradient(60deg, #3b82f6, #8b5cf6, #ec4899, #f59e0b, #10b981, #06b6d4);
+            background-size: 300% 300%;
+            animation: gradient-rotate 3s ease alternate infinite;
+            border-radius: 0.85rem;
+            filter: blur(2px); /* Glow effect */
+        }
+
+        /* The Dark Background (Between Content and Gradient) */
+        .gradient-border::after {
+            content: "";
+            position: absolute;
+            inset: 0;
+            z-index: -1;
+            background: rgba(10, 10, 10, 0.95);
+            border-radius: 0.75rem;
+        }
     </style>
 
 <link rel="stylesheet" href="/index.css">
+
+  
 <script type="importmap">
 {
   "imports": {
@@ -76,7 +133,7 @@
   }
 }
 </script>
-  <script type="module" crossorigin src="./assets/index-c5d93b3d.js"></script>
+  <script type="module" crossorigin src="./assets/index-31479dd6.js"></script>
 </head>
 <body class="overflow-hidden bg-black text-white select-none">
     <div id="root"></div>
