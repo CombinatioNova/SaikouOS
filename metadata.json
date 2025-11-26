@@ -1,6 +1,6 @@
 {
   "name": "Saikou OS React",
   "description": "A web-based operating system simulator with theming capabilities, window management, and simulated authentication.",
-  "version": "1.4.1",
+  "version": "1.4.2",
   "requestFramePermissions": []
 }
