@@ -331,10 +331,15 @@
     <!-- Navbar -->
     <nav
         class="sticky top-0 z-50 bg-black/90 border-b border-[#222] px-4 h-[60px] flex items-center justify-between backdrop-blur-md">
-        <a href="/" class="flex items-center gap-2">
-            <div class="w-2 h-2 bg-white rounded-full"></div>
-            <div class="font-bold text-lg tracking-tight text-white">Saikou Tools <span
-                    class="text-gray-600 font-normal">/ Netvis</span></div>
+        <a href="#" onclick="location.reload()" class="flex items-center gap-3 group">
+            <!-- LOGO CHANGE: SDIS.svg -->
+            <img src="SDIS.svg" class="h-8 w-auto object-contain transition-transform group-hover:scale-105" alt="SDIS"
+                onerror="this.style.display='none'; this.nextElementSibling.classList.remove('hidden')">
+            <!-- Fallback if SVG is missing in preview -->
+            <div class="w-2 h-2 bg-white rounded-full hidden shadow-[0_0_10px_rgba(255,255,255,0.4)]"></div>
+
+            <div class="font-bold text-lg tracking-tight text-white group-hover:text-gray-200 transition-colors">SDIS
+                <span class="text-gray-600 font-normal group-hover:text-gray-500">/ Netvis</span></div>
         </a>
 
         <div id="auth-ui" class="flex items-center gap-3">

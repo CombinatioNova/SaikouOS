@@ -9,13 +9,15 @@
     <meta name="description" content="A tool for SDIS to manage exploiter rings." />
     <link rel="icon" type="image/png" href="https://saikou.dev/assets/images/favicon.png"
         onerror="this.onerror=null;this.href='https://placehold.co/32x32/000000/FFFFFF?text=S'" />
-    
+
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    
+
     <!-- Fonts & Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet" />
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=JetBrains+Mono:wght@400;700&display=swap"
+        rel="stylesheet" />
 
     <style>
         :root {
@@ -44,11 +46,14 @@
             border-radius: 8px;
             transition: border-color 0.2s;
         }
+
         .min-panel:hover {
             border-color: #444;
         }
 
-        .min-input, select, textarea {
+        .min-input,
+        select,
+        textarea {
             background-color: #000 !important;
             border: 1px solid var(--border) !important;
             color: white !important;
@@ -60,7 +65,10 @@
             width: 100%;
             transition: border-color 0.2s;
         }
-        .min-input:focus, select:focus, textarea:focus {
+
+        .min-input:focus,
+        select:focus,
+        textarea:focus {
             border-color: #666 !important;
             box-shadow: none !important;
         }
@@ -81,8 +89,15 @@
             transition: opacity 0.2s;
             user-select: none;
         }
-        .min-btn:hover:not(:disabled) { opacity: 0.9; }
-        .min-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .min-btn:hover:not(:disabled) {
+            opacity: 0.9;
+        }
+
+        .min-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
 
         .min-btn-outline {
             background: transparent;
@@ -99,12 +114,17 @@
             transition: all 0.2s;
             user-select: none;
         }
+
         .min-btn-outline:hover:not(:disabled) {
             border-color: #666;
             color: white;
             background: #111;
         }
-        .min-btn-outline:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .min-btn-outline:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
 
         .min-btn-danger {
             background: rgba(239, 68, 68, 0.1);
@@ -116,7 +136,12 @@
             transition: all 0.2s;
             user-select: none;
         }
-        .min-btn-danger:hover { background: rgba(239, 68, 68, 0.2); color: white; border-color: #ef4444; }
+
+        .min-btn-danger:hover {
+            background: rgba(239, 68, 68, 0.2);
+            color: white;
+            border-color: #ef4444;
+        }
 
         /* --- Modals (Fixed Ghost Element Issue) --- */
         .modal-overlay {
@@ -128,24 +153,27 @@
             align-items: center;
             justify-content: center;
             z-index: 50;
-            
+
             /* Hidden State */
             opacity: 0;
-            visibility: hidden; /* Crucial: removes element from hit-testing */
+            visibility: hidden;
+            /* Crucial: removes element from hit-testing */
             pointer-events: none;
-            
+
             /* Delay visibility transition so opacity can fade out first */
             transition: opacity 0.2s ease, visibility 0s linear 0.2s;
         }
+
         .modal-overlay.show {
             /* Visible State */
             opacity: 1;
             visibility: visible;
             pointer-events: auto;
-            
+
             /* Remove delay when showing so it appears instantly */
             transition-delay: 0s;
         }
+
         .modal-content {
             background-color: #000;
             border: 1px solid var(--border);
@@ -153,6 +181,7 @@
             transform: scale(0.98);
             transition: transform 0.2s ease;
         }
+
         .modal-overlay.show .modal-content {
             transform: scale(1);
         }
@@ -168,20 +197,43 @@
             cursor: pointer;
             user-select: none;
         }
-        .tab-btn:hover { color: white; }
+
+        .tab-btn:hover {
+            color: white;
+        }
+
         .tab-btn.active {
             color: white;
             border-bottom-color: white;
         }
-        .tab-content { display: none; }
-        .tab-content.active { display: block; }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
 
         /* --- Utils --- */
-        .custom-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
-        .custom-scroll::-webkit-scrollbar-track { background: #111; }
-        .custom-scroll::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
-        .custom-scroll::-webkit-scrollbar-thumb:hover { background: #555; }
-        
+        .custom-scroll::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+
+        .custom-scroll::-webkit-scrollbar-track {
+            background: #111;
+        }
+
+        .custom-scroll::-webkit-scrollbar-thumb {
+            background: #333;
+            border-radius: 3px;
+        }
+
+        .custom-scroll::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+
         .role-tag {
             font-family: 'JetBrains Mono', monospace;
             font-size: 10px;
@@ -193,15 +245,29 @@
             transition: opacity 0.2s;
             user-select: none;
         }
-        .role-tag:hover { opacity: 0.8; }
+
+        .role-tag:hover {
+            opacity: 0.8;
+        }
 
         /* Animation for loading */
         @keyframes pulse-border {
-            0% { border-color: #333; }
-            50% { border-color: #555; }
-            100% { border-color: #333; }
+            0% {
+                border-color: #333;
+            }
+
+            50% {
+                border-color: #555;
+            }
+
+            100% {
+                border-color: #333;
+            }
         }
-        .loading-pulse { animation: pulse-border 1.5s infinite; }
+
+        .loading-pulse {
+            animation: pulse-border 1.5s infinite;
+        }
     </style>
 </head>
 
@@ -209,16 +275,24 @@
     <!-- Navbar -->
     <nav class="sticky top-0 z-50 bg-black/90 border-b border-[#222] px-4 py-4 backdrop-blur-md">
         <div class="max-w-7xl mx-auto flex justify-between items-center">
-            <a href="/" class="flex items-center gap-2">
-                <div class="w-2 h-2 bg-white rounded-full"></div>
-                <div class="font-bold text-lg tracking-tight text-white">Saikou Tools <span class="text-gray-600 font-normal">/ Ring Manager</span></div>
+            <!-- UPDATED NAVBAR: SDIS Branding + Ring Manager Text -->
+            <a href="#" onclick="location.reload()" class="flex items-center gap-3 group">
+                <!-- LOGO CHANGE: SDIS.svg -->
+                <img src="SDIS.svg" class="h-8 w-auto object-contain transition-transform group-hover:scale-105"
+                    alt="SDIS" onerror="this.style.display='none'; this.nextElementSibling.classList.remove('hidden')">
+                <!-- Fallback if SVG is missing in preview -->
+                <div class="w-2 h-2 bg-white rounded-full hidden"></div>
+
+                <div class="font-bold text-lg tracking-tight text-white group-hover:text-gray-200 transition-colors">
+                    SDIS <span class="text-gray-600 font-normal group-hover:text-gray-500">/ Ring Manager</span></div>
             </a>
-            
+
             <!-- Auth UI -->
             <div id="auth-ui">
                 <!-- Logged Out -->
                 <div id="login-container">
-                    <button id="login-btn" class="min-btn-outline flex items-center gap-2 text-xs uppercase tracking-wider font-semibold">
+                    <button id="login-btn"
+                        class="min-btn-outline flex items-center gap-2 text-xs uppercase tracking-wider font-semibold">
                         <i class="fas fa-lock text-[10px]"></i> <span>SDIS Access</span>
                     </button>
                 </div>
@@ -229,7 +303,9 @@
                         <div id="user-status-role" class="text-[10px] text-gray-500 uppercase mt-1 font-mono"></div>
                     </div>
                     <img id="user-status-avatar" class="w-9 h-9 rounded bg-gray-900 border border-[#333] object-cover">
-                    <button id="logout-btn" class="text-gray-500 hover:text-white px-2 transition-colors cursor-pointer"><i class="fas fa-sign-out-alt"></i></button>
+                    <button id="logout-btn"
+                        class="text-gray-500 hover:text-white px-2 transition-colors cursor-pointer"><i
+                            class="fas fa-sign-out-alt"></i></button>
                 </div>
             </div>
         </div>
@@ -240,7 +316,8 @@
         <div class="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 gap-4">
             <div>
                 <h1 class="text-3xl font-bold text-white tracking-tight mb-2">Exploiter Rings</h1>
-                <p class="text-gray-500 text-sm max-w-lg">Manage and track organized groups of bad actors. Changes here reflect in global lookup tools.</p>
+                <p class="text-gray-500 text-sm max-w-lg">Manage and track organized groups of bad actors. Changes here
+                    reflect in global lookup tools.</p>
             </div>
             <button id="create-ring-btn" class="min-btn" disabled>
                 <i class="fas fa-plus"></i> Create Ring
@@ -261,7 +338,7 @@
                 <h2 class="text-lg font-bold text-white">No Rings Found</h2>
                 <p class="text-gray-500 text-sm mt-2">Initialize a new ring to begin tracking.</p>
             </div>
-            
+
             <!-- Rings Grid -->
             <div id="rings-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 <!-- Ring cards will be populated here -->
@@ -290,19 +367,22 @@
             <!-- Modal Header -->
             <div class="flex items-start justify-between p-6 border-b border-[#222] bg-[#050505]">
                 <div>
-                     <h2 id="modal-ring-name" class="text-xl font-bold text-white">Ring Details</h2>
-                     <p id="modal-ring-id" class="text-xs text-gray-500 font-mono mt-1"></p>
+                    <h2 id="modal-ring-name" class="text-xl font-bold text-white">Ring Details</h2>
+                    <p id="modal-ring-id" class="text-xs text-gray-500 font-mono mt-1"></p>
                 </div>
-                <button id="details-modal-close-btn" class="text-gray-500 hover:text-white transition-colors cursor-pointer"><i class="fas fa-times text-xl"></i></button>
+                <button id="details-modal-close-btn"
+                    class="text-gray-500 hover:text-white transition-colors cursor-pointer"><i
+                        class="fas fa-times text-xl"></i></button>
             </div>
 
             <!-- Modal Body -->
             <div class="flex-grow overflow-y-auto custom-scroll p-6 bg-black">
-                 <!-- Tabs -->
+                <!-- Tabs -->
                 <div class="border-b border-[#222] mb-6">
                     <nav id="modal-tabs" class="flex space-x-6">
                         <button class="tab-btn active" data-tab="settings">Settings</button>
-                        <button class="tab-btn" data-tab="members">Members <span id="member-count-badge" class="ml-1 text-[10px] bg-[#222] px-1.5 py-0.5 rounded text-gray-400">0</span></button>
+                        <button class="tab-btn" data-tab="members">Members <span id="member-count-badge"
+                                class="ml-1 text-[10px] bg-[#222] px-1.5 py-0.5 rounded text-gray-400">0</span></button>
                         <button class="tab-btn" data-tab="notes">Notes</button>
                     </nav>
                 </div>
@@ -312,12 +392,14 @@
                     <!-- Settings Tab -->
                     <div id="tab-settings" class="tab-content active space-y-5">
                         <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
-                             <div class="md:col-span-2">
-                                <label for="modal-edit-name" class="block text-xs font-bold text-gray-500 uppercase mb-2">Ring Name</label>
+                            <div class="md:col-span-2">
+                                <label for="modal-edit-name"
+                                    class="block text-xs font-bold text-gray-500 uppercase mb-2">Ring Name</label>
                                 <input type="text" id="modal-edit-name" class="min-input" placeholder="Ring Name">
                             </div>
                             <div>
-                                <label for="modal-edit-status" class="block text-xs font-bold text-gray-500 uppercase mb-2">Status</label>
+                                <label for="modal-edit-status"
+                                    class="block text-xs font-bold text-gray-500 uppercase mb-2">Status</label>
                                 <select id="modal-edit-status" class="min-input">
                                     <option>Active</option>
                                     <option>Unknown</option>
@@ -326,38 +408,45 @@
                             </div>
                         </div>
                         <div>
-                            <label for="modal-edit-description" class="block text-xs font-bold text-gray-500 uppercase mb-2">Description</label>
-                            <textarea id="modal-edit-description" rows="4" class="min-input resize-none" placeholder="Brief description of the ring..."></textarea>
+                            <label for="modal-edit-description"
+                                class="block text-xs font-bold text-gray-500 uppercase mb-2">Description</label>
+                            <textarea id="modal-edit-description" rows="4" class="min-input resize-none"
+                                placeholder="Brief description of the ring..."></textarea>
                         </div>
-                         <div class="flex justify-end pt-5 border-t border-[#222]">
-                             <button id="save-ring-changes-btn" class="min-btn"><i class="fas fa-save"></i> Save Changes</button>
-                         </div>
-                         
-                         <!-- Danger Zone -->
-                         <div class="mt-8 pt-6 border-t border-[#222]">
-                             <div class="flex justify-between items-center p-4 border border-red-900/30 rounded bg-red-900/5">
-                                 <div>
-                                     <p class="font-bold text-red-500 text-sm">Delete Ring</p>
-                                     <p class="text-xs text-gray-500">Permanently remove this ring and all associated data.</p>
-                                 </div>
-                                 <button id="delete-ring-btn" class="min-btn-danger">Delete</button>
-                             </div>
-                         </div>
+                        <div class="flex justify-end pt-5 border-t border-[#222]">
+                            <button id="save-ring-changes-btn" class="min-btn"><i class="fas fa-save"></i> Save
+                                Changes</button>
+                        </div>
+
+                        <!-- Danger Zone -->
+                        <div class="mt-8 pt-6 border-t border-[#222]">
+                            <div
+                                class="flex justify-between items-center p-4 border border-red-900/30 rounded bg-red-900/5">
+                                <div>
+                                    <p class="font-bold text-red-500 text-sm">Delete Ring</p>
+                                    <p class="text-xs text-gray-500">Permanently remove this ring and all associated
+                                        data.</p>
+                                </div>
+                                <button id="delete-ring-btn" class="min-btn-danger">Delete</button>
+                            </div>
+                        </div>
                     </div>
 
                     <!-- Members Tab -->
                     <div id="tab-members" class="tab-content space-y-4">
                         <div class="flex gap-2">
-                            <input type="text" id="add-member-input" class="min-input" placeholder="Roblox Username or ID">
+                            <input type="text" id="add-member-input" class="min-input"
+                                placeholder="Roblox Username or ID">
                             <button id="add-member-btn" class="min-btn">Add</button>
                         </div>
-                        
+
                         <div class="min-panel p-0 overflow-hidden">
                             <div class="bg-[#111] px-4 py-2 border-b border-[#222] flex justify-between items-center">
                                 <span class="text-xs font-bold text-gray-500 uppercase">Roster</span>
                                 <span class="text-xs text-gray-600 font-mono" id="member-count">0 Members</span>
                             </div>
-                            <div id="members-list" class="max-h-[400px] overflow-y-auto custom-scroll divide-y divide-[#222]">
+                            <div id="members-list"
+                                class="max-h-[400px] overflow-y-auto custom-scroll divide-y divide-[#222]">
                                 <!-- Member items will be populated here -->
                             </div>
                         </div>
@@ -366,12 +455,13 @@
                     <!-- Notes Tab -->
                     <div id="tab-notes" class="tab-content space-y-4">
                         <div class="space-y-2">
-                             <textarea id="add-note-textarea" rows="3" class="min-input resize-none" placeholder="Add a timestamped note..."></textarea>
+                            <textarea id="add-note-textarea" rows="3" class="min-input resize-none"
+                                placeholder="Add a timestamped note..."></textarea>
                             <div class="text-right">
                                 <button id="add-note-btn" class="min-btn">Add Note</button>
                             </div>
                         </div>
-                         <div>
+                        <div>
                             <div class="text-xs font-bold text-gray-500 uppercase mb-3 mt-6">Intelligence Log</div>
                             <div id="notes-list" class="space-y-3 max-h-[400px] overflow-y-auto custom-scroll">
                                 <!-- Note items will be populated here -->
@@ -382,7 +472,7 @@
             </div>
         </div>
     </div>
-    
+
     <!-- Confirmation Modal -->
     <div id="confirmation-modal" class="modal-overlay">
         <div class="modal-content w-full max-w-sm rounded p-6 bg-black border border-[#333]">
@@ -394,12 +484,13 @@
             </div>
         </div>
     </div>
-    
+
     <!-- Edit Role Modal -->
     <div id="edit-role-modal" class="modal-overlay">
         <div class="modal-content w-full max-w-sm rounded p-6 bg-black border border-[#333]">
             <h3 class="text-lg font-bold mb-4 text-white">Edit Member Role</h3>
-            <div id="edit-role-member-info" class="flex items-center gap-3 mb-4 p-3 bg-[#111] border border-[#222] rounded">
+            <div id="edit-role-member-info"
+                class="flex items-center gap-3 mb-4 p-3 bg-[#111] border border-[#222] rounded">
                 <!-- Member info will be populated here -->
             </div>
             <div id="role-options-container" class="space-y-1">
@@ -413,7 +504,8 @@
     </div>
 
     <!-- Toast Notification -->
-    <div id="toast" class="fixed top-5 right-5 z-[60] px-4 py-3 rounded border border-[#333] shadow-xl text-white text-sm transition-transform duration-300 translate-x-full font-mono flex items-center gap-3">
+    <div id="toast"
+        class="fixed top-5 right-5 z-[60] px-4 py-3 rounded border border-[#333] shadow-xl text-white text-sm transition-transform duration-300 translate-x-full font-mono flex items-center gap-3">
     </div>
 
     <script>
@@ -427,7 +519,7 @@
             const loadingState = document.getElementById('loading-state');
             const emptyState = document.getElementById('empty-state');
             const ringsGrid = document.getElementById('rings-grid');
-            
+
             // Details Modal Elements
             const detailsModal = document.getElementById('ring-details-modal');
             const detailsModalCloseBtn = document.getElementById('details-modal-close-btn');
@@ -459,13 +551,13 @@
             const sdisCodePhraseInput = document.getElementById('sdis-code-phrase');
             const sdisLoginSubmitBtn = document.getElementById('sdis-login-submit-btn');
             const sdisLoginCancelBtn = document.getElementById('sdis-login-cancel-btn');
-            
+
             // Confirmation Modal Elements
             const confirmationModal = document.getElementById('confirmation-modal');
             const confirmationMessage = document.getElementById('confirmation-message');
             const confirmationCancelBtn = document.getElementById('confirmation-cancel-btn');
             const confirmationConfirmBtn = document.getElementById('confirmation-confirm-btn');
-            
+
             // Edit Role Modal Elements
             const editRoleModal = document.getElementById('edit-role-modal');
             const editRoleMemberInfo = document.getElementById('edit-role-member-info');
@@ -480,9 +572,9 @@
             let afterLoginCallback = null;
             let currentEditingRingId = null;
             let onConfirmCallback = null;
-            const avatarCache = {}; 
+            const avatarCache = {};
             const VALID_MEMBER_ROLES = ['Member', 'Leader', 'Figurehead', 'Alt', 'Smurf', 'Associate'];
-            
+
             // Using tailwind border colors for the role tags
             const roleStyles = {
                 'Leader': 'border-red-600 text-red-500 bg-red-900/10',
@@ -497,11 +589,11 @@
             const escapeHtml = (unsafe) => {
                 if (typeof unsafe !== 'string') return unsafe;
                 return unsafe
-                     .replace(/&/g, "&amp;")
-                     .replace(/</g, "&lt;")
-                     .replace(/>/g, "&gt;")
-                     .replace(/"/g, "&quot;")
-                     .replace(/'/g, "&#039;");
+                    .replace(/&/g, "&amp;")
+                    .replace(/</g, "&lt;")
+                    .replace(/>/g, "&gt;")
+                    .replace(/"/g, "&quot;")
+                    .replace(/'/g, "&#039;");
             };
 
             // --- Auth Functions ---
@@ -529,7 +621,7 @@
                 const storedUser = localStorage.getItem('sdis_user');
                 if (authToken && storedUser) {
                     try {
-                         currentUser = JSON.parse(storedUser);
+                        currentUser = JSON.parse(storedUser);
                     } catch (e) {
                         handleLogout();
                     }
@@ -543,7 +635,7 @@
                     loadingState.innerHTML = `<i class="fas fa-lock text-3xl text-gray-700 mb-3"></i><p class="text-gray-500 font-mono text-xs">AUTHENTICATION REQUIRED</p>`;
                 }
             };
-            
+
             const handleLogin = async () => {
                 const codePhrase = sdisCodePhraseInput.value.trim();
                 if (!codePhrase) return;
@@ -572,7 +664,8 @@
                         }
                         afterLoginCallback = null;
                     } else { throw new Error(result.error || 'Login failed'); }
-                } catch (error) { showToast(`Error: ${error.message}`, 'error');
+                } catch (error) {
+                    showToast(`Error: ${error.message}`, 'error');
                 } finally { sdisLoginSubmitBtn.disabled = false; sdisLoginSubmitBtn.textContent = 'Authenticate'; }
             };
 
@@ -592,7 +685,7 @@
             loginBtn.addEventListener('click', () => showLoginModal());
             logoutBtn.addEventListener('click', handleLogout);
             sdisLoginCancelBtn.addEventListener('click', () => {
-                 sdisLoginModal.classList.remove('show');
+                sdisLoginModal.classList.remove('show');
             });
             sdisLoginSubmitBtn.addEventListener('click', handleLogin);
             sdisCodePhraseInput.addEventListener('keydown', e => e.key === 'Enter' && handleLogin());
@@ -602,7 +695,7 @@
                 const toast = document.getElementById('toast');
                 const colors = { success: 'bg-green-900/90 border-green-700 text-green-100', error: 'bg-red-900/90 border-red-700 text-red-100', info: 'bg-[#111] border-[#333] text-gray-200' };
                 const icons = { success: 'fa-check-circle text-green-400', error: 'fa-times-circle text-red-400', info: 'fa-info-circle text-blue-400' };
-                
+
                 toast.className = `fixed top-5 right-5 z-[60] px-4 py-3 rounded border shadow-xl text-sm transition-transform duration-300 translate-x-full font-mono flex items-center gap-3 backdrop-blur-md ${colors[type]}`;
                 toast.innerHTML = `<i class="fas ${icons[type]} text-lg"></i><span>${message}</span>`;
                 setTimeout(() => toast.style.transform = 'translateX(0)', 100);
@@ -630,7 +723,7 @@
                     throw new Error('Session expired. Please log in again.');
                 }
                 const data = await response.json();
-                 if (!response.ok) {
+                if (!response.ok) {
                     throw new Error(data.error || `HTTP error! status: ${response.status}`);
                 }
                 return data;
@@ -653,7 +746,7 @@
                     loadingState.innerHTML = `<p class="text-red-400 font-mono text-xs">CONNECTION FAILURE</p>`;
                 }
             };
-            
+
             const renderRings = (rings) => {
                 loadingState.classList.add('hidden');
                 if (rings.length === 0) {
@@ -691,7 +784,7 @@
                     `;
                 }).join('');
             };
-            
+
             // --- Avatar Fetching Function with Caching ---
             const getMemberAvatars = async (memberIds) => {
                 if (!memberIds || memberIds.length === 0) return new Map();
@@ -717,7 +810,7 @@
                         }
                     } catch (error) { console.error("Avatar fetch error:", error); }
                 }
-                
+
                 memberIds.forEach(id => {
                     if (!avatarMap.has(id)) {
                         const placeholder = `https://placehold.co/48x48/1f222c/FFFFFF?text=?`;
@@ -740,7 +833,7 @@
                 confirmationModal.classList.remove('show');
                 onConfirmCallback = null;
             };
-            
+
             confirmationCancelBtn.addEventListener('click', hideConfirmationModal);
             confirmationConfirmBtn.addEventListener('click', () => {
                 if (typeof onConfirmCallback === 'function') {
@@ -752,26 +845,26 @@
             const showDetailsModal = async (ringId) => {
                 currentEditingRingId = ringId;
                 detailsModal.classList.add('show');
-                
+
                 modalRingName.textContent = 'Loading Protocol...';
                 modalRingId.textContent = '';
                 document.getElementById('tab-content-container').style.opacity = '0.3';
                 document.getElementById('tab-content-container').style.pointerEvents = 'none';
-                
+
                 try {
                     const data = await apiRequest(`/rings/${ringId}`);
                     if (!data.success) throw new Error(data.error);
                     const ring = data.ring;
-                    
+
                     modalRingName.textContent = ring.name;
                     modalRingId.textContent = `ID: ${ring.id}`;
                     modalEditName.value = ring.name;
                     modalEditStatus.value = ring.status || 'Unknown';
                     modalEditDescription.value = ring.description || '';
-                    
+
                     await renderMembers(ring.members);
                     renderNotes(ring.notes);
-                    
+
                     document.getElementById('tab-content-container').style.opacity = '1';
                     document.getElementById('tab-content-container').style.pointerEvents = 'auto';
 
@@ -780,7 +873,7 @@
                     closeDetailsModal();
                 }
             };
-            
+
             const closeDetailsModal = () => {
                 detailsModal.classList.remove('show');
                 currentEditingRingId = null;
@@ -789,12 +882,12 @@
             const renderMembers = async (members) => {
                 memberCountSpan.textContent = members?.length ? `${members.length} Members` : '0 Members';
                 memberCountBadge.textContent = members?.length || 0;
-                
+
                 if (!members || members.length === 0) {
                     membersList.innerHTML = `<div class="p-4 text-center text-xs text-gray-600 font-mono">No members found in roster.</div>`;
                     return;
                 }
-                
+
                 // Skeleton loading
                 membersList.innerHTML = members.map(() => `
                     <div class="flex items-center justify-between p-3 animate-pulse">
@@ -838,7 +931,7 @@
             };
 
             const renderNotes = (notes) => {
-                 if (!notes || notes.length === 0) {
+                if (!notes || notes.length === 0) {
                     notesList.innerHTML = `<div class="p-4 text-center text-xs text-gray-600 font-mono">No intelligence logs found.</div>`;
                     return;
                 }
@@ -858,11 +951,11 @@
             };
 
             const handleSaveChanges = async () => {
-                if(!currentEditingRingId) return;
+                if (!currentEditingRingId) return;
                 const name = modalEditName.value;
                 const description = modalEditDescription.value;
                 const status = modalEditStatus.value;
-                
+
                 saveRingChangesBtn.disabled = true;
                 saveRingChangesBtn.innerHTML = `<i class="fas fa-spinner fa-spin mr-2"></i> Saving...`;
 
@@ -882,7 +975,7 @@
                     saveRingChangesBtn.innerHTML = `<i class="fas fa-save mr-2"></i> Save Changes`;
                 }
             };
-            
+
             const handleDeleteRing = async () => {
                 if (!currentEditingRingId) return;
                 showConfirmationModal('Permanently purge this ring data? This action is irreversible.', async () => {
@@ -891,7 +984,7 @@
                         showToast('Ring purged successfully', 'success');
                         closeDetailsModal();
                         loadRings();
-                    } catch(error) {
+                    } catch (error) {
                         showToast(error.message, 'error');
                     }
                 });
@@ -899,58 +992,58 @@
 
             const addMember = async () => {
                 const query = addMemberInput.value.trim();
-                if(!query || !currentEditingRingId) return;
+                if (!query || !currentEditingRingId) return;
 
                 addMemberBtn.disabled = true;
                 addMemberBtn.textContent = '...';
-                
+
                 try {
                     // Try fetch from proxy first for ID resolution
                     const userRes = await fetch(`${DATA_WORKER_URL}?lookup=${encodeURIComponent(query)}`);
-                    if(!userRes.ok) throw new Error("Target not found.");
+                    if (!userRes.ok) throw new Error("Target not found.");
                     const userData = await userRes.json();
-                    if(!userData.success || !userData.profile) throw new Error("Roblox user resolution failed.");
-                    
+                    if (!userData.success || !userData.profile) throw new Error("Roblox user resolution failed.");
+
                     const member = { userId: userData.profile.id, username: userData.profile.name };
 
                     const data = await apiRequest(`/rings/${currentEditingRingId}/members`, {
                         method: 'POST',
                         body: JSON.stringify({ members: [member] })
                     });
-                    
+
                     // Added check to ensure data exists before access
                     if (data && data.updatedRing) {
-                         await renderMembers(data.updatedRing.members);
-                         showToast('Member added to roster', 'success');
-                         addMemberInput.value = '';
+                        await renderMembers(data.updatedRing.members);
+                        showToast('Member added to roster', 'success');
+                        addMemberInput.value = '';
                     } else {
-                         throw new Error("Invalid response from server.");
+                        throw new Error("Invalid response from server.");
                     }
-                } catch(error) {
-                     showToast(error.message, 'error');
+                } catch (error) {
+                    showToast(error.message, 'error');
                 } finally {
-                     addMemberBtn.disabled = false;
-                     addMemberBtn.textContent = 'Add';
+                    addMemberBtn.disabled = false;
+                    addMemberBtn.textContent = 'Add';
                 }
             };
 
             const removeMember = async (userId) => {
-                 if(!userId || !currentEditingRingId) return;
-                 try {
-                     const data = await apiRequest(`/rings/${currentEditingRingId}/members`, {
-                         method: 'DELETE',
-                         body: JSON.stringify({ userIds: [parseInt(userId)] })
-                     });
-                     await renderMembers(data.updatedRing.members);
-                     showToast('Member removed from roster', 'success');
-                 } catch(error) {
-                     showToast(error.message, 'error');
-                 }
+                if (!userId || !currentEditingRingId) return;
+                try {
+                    const data = await apiRequest(`/rings/${currentEditingRingId}/members`, {
+                        method: 'DELETE',
+                        body: JSON.stringify({ userIds: [parseInt(userId)] })
+                    });
+                    await renderMembers(data.updatedRing.members);
+                    showToast('Member removed from roster', 'success');
+                } catch (error) {
+                    showToast(error.message, 'error');
+                }
             };
 
             const addNote = async () => {
                 const note = addNoteTextarea.value.trim();
-                if(!note || !currentEditingRingId) return;
+                if (!note || !currentEditingRingId) return;
                 addNoteBtn.disabled = true;
                 addNoteBtn.innerHTML = `Saving...`;
                 try {
@@ -958,11 +1051,11 @@
                         method: 'POST',
                         body: JSON.stringify({ note })
                     });
-                    
+
                     renderNotes(data.updatedRing.notes);
                     showToast('Intelligence log updated', 'success');
                     addNoteTextarea.value = '';
-                } catch(error) {
+                } catch (error) {
                     showToast(error.message, 'error');
                 } finally {
                     addNoteBtn.disabled = false;
@@ -984,7 +1077,7 @@
                     }
                 });
             };
-            
+
             const handleEditRoleClick = (target) => {
                 const userId = target.dataset.userId;
                 const username = target.dataset.username;
@@ -1005,7 +1098,7 @@
                         <span class="text-xs font-bold text-gray-300">${role}</span>
                     </label>
                 `).join('');
-                
+
                 editRoleSaveBtn.onclick = () => saveMemberRole(userId);
 
                 editRoleModal.classList.add('show');
@@ -1019,11 +1112,11 @@
                 editRoleSaveBtn.innerHTML = `Saving...`;
 
                 try {
-                     const data = await apiRequest(`/rings/${currentEditingRingId}/members/${userId}`, {
+                    const data = await apiRequest(`/rings/${currentEditingRingId}/members/${userId}`, {
                         method: 'PUT',
                         body: JSON.stringify({ role: selectedRole })
                     });
-                    
+
                     showToast('Role designation updated', 'success');
                     await renderMembers(data.updatedRing.members);
                     editRoleModal.classList.remove('show');
@@ -1035,7 +1128,7 @@
                     editRoleSaveBtn.textContent = 'Save Role';
                 }
             };
-            
+
             editRoleCancelBtn.addEventListener('click', () => {
                 editRoleModal.classList.remove('show');
             });
@@ -1075,27 +1168,27 @@
             membersList.addEventListener('click', e => {
                 const removeBtn = e.target.closest('.remove-member-btn');
                 if (removeBtn) {
-                     const userId = removeBtn.dataset.userId;
-                     showConfirmationModal('Remove this member from the ring?', () => {
+                    const userId = removeBtn.dataset.userId;
+                    showConfirmationModal('Remove this member from the ring?', () => {
                         removeMember(userId);
-                     });
-                     return;
+                    });
+                    return;
                 }
-                
+
                 const roleTag = e.target.closest('.role-tag');
                 if (roleTag) {
                     handleEditRoleClick(roleTag);
                 }
             });
-            
+
             detailsModalCloseBtn.addEventListener('click', closeDetailsModal);
             saveRingChangesBtn.addEventListener('click', handleSaveChanges);
             deleteRingBtn.addEventListener('click', handleDeleteRing);
             addMemberBtn.addEventListener('click', addMember);
             addNoteBtn.addEventListener('click', addNote);
-            
+
             addMemberInput.addEventListener('keydown', e => e.key === 'Enter' && addMember());
-            
+
             createRingBtn.addEventListener('click', () => {
                 currentEditingRingId = null;
                 modalRingName.textContent = 'Initialize New Ring';
@@ -1103,7 +1196,7 @@
                 modalEditName.value = '';
                 modalEditDescription.value = '';
                 modalEditStatus.value = 'Active';
-                
+
                 document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
                 document.querySelector('.tab-btn[data-tab="settings"]').classList.add('active');
                 document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
@@ -1115,11 +1208,11 @@
                 saveRingChangesBtn.textContent = 'Initialize Ring';
 
                 detailsModal.classList.add('show');
-                
+
                 const createHandler = async () => {
                     const name = modalEditName.value;
                     const description = modalEditDescription.value;
-                    if(!name) {
+                    if (!name) {
                         showToast('Ring Name is mandatory', 'error');
                         return;
                     }
@@ -1131,13 +1224,13 @@
                         showToast('Ring initialized successfully', 'success');
                         closeDetailsModal();
                         loadRings();
-                    } catch(error) {
+                    } catch (error) {
                         showToast(error.message, 'error');
                     }
                 };
-                
+
                 saveRingChangesBtn.onclick = createHandler;
-                
+
                 const observer = new MutationObserver(() => {
                     if (!detailsModal.classList.contains('show')) {
                         document.getElementById('modal-tabs').style.display = '';
@@ -1147,7 +1240,7 @@
                         observer.disconnect();
                     }
                 });
-                observer.observe(detailsModal, { attributes: true, attributeFilter: ['class']});
+                observer.observe(detailsModal, { attributes: true, attributeFilter: ['class'] });
             });
 
 
@@ -1156,4 +1249,5 @@
         });
     </script>
 </body>
+
 </html>
