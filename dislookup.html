@@ -237,45 +237,46 @@
 
         function calculateRisk(tase) {
             let score = tase.scoreSum || 0;
-            let rating = "Safe";
+            let hitCount = tase.guilds ? tase.guilds.length : 0;
+            
+            let rating = "CLEAN";
             let color = "text-green-500";
             let barColor = "bg-green-500";
             let rBorder = "border-green-600";
+            
+            // Reasons logic remains useful for the list
             let reasons = { positive: [], negative: [] };
 
-            // Calculate Flags
-            if (tase.guilds && tase.guilds.length > 0) {
-                reasons.negative.push({ text: `Detected in ${tase.guilds.length} Flagged Servers`, weight: -10, icon: "fa-server" });
+            // Logic: Green if 0 found, Yellow if 1 found, Red if > 1 found.
+            if (hitCount === 0) {
+                 rating = "NO RECORDS";
+                 color = "text-green-500";
+                 barColor = "bg-green-500";
+                 rBorder = "border-green-600";
+                 reasons.positive.push({ text: "No adverse records found in database", weight: 0, icon: "fa-check" });
+            } else if (hitCount === 1) {
+                 rating = "FLAGGED";
+                 color = "text-yellow-500";
+                 barColor = "bg-yellow-500";
+                 rBorder = "border-yellow-500";
+            } else {
+                 rating = "HIGH RISK"; 
+                 color = "text-red-500";
+                 barColor = "bg-red-600";
+                 rBorder = "border-red-600";
+            }
+
+            if (hitCount > 0) {
+                reasons.negative.push({ text: `Detected in ${hitCount} Flagged Server(s)`, weight: -10, icon: "fa-server" });
                 
                 const condoCount = tase.guilds.filter(g => g.name.toLowerCase().includes('condo') || g.type.includes('Condo')).length;
                 if(condoCount > 0) reasons.negative.push({ text: `${condoCount} Confirmed Condo Connections`, weight: -20, icon: "fa-link" });
                 
                 const staffCount = tase.guilds.filter(g => g.isStaff).length;
                 if(staffCount > 0) reasons.negative.push({ text: `Staff in ${staffCount} Flagged Server(s)`, weight: -50, icon: "fa-gavel" });
-            } else {
-                reasons.positive.push({ text: "No adverse records found in database", weight: 0, icon: "fa-check" });
             }
 
             if (score > 100) score = 100; // Cap visual score
-
-            if (score > 50) {
-                rating = "CRITICAL";
-                color = "text-red-500";
-                barColor = "bg-red-600";
-                rBorder = "border-red-600";
-            } else if (score > 10) {
-                rating = "SUSPICIOUS";
-                color = "text-yellow-500";
-                barColor = "bg-yellow-500";
-                rBorder = "border-yellow-500";
-            } else if (score > 0) {
-                rating = "LOW RISK";
-                color = "text-orange-400";
-                barColor = "bg-orange-400";
-                rBorder = "border-orange-400";
-            } else {
-                rating = "SAFE";
-            }
 
             return { score, rating, color, barColor, rBorder, reasons };
         }
@@ -319,7 +320,7 @@
                              <div class="px-6 pb-6 relative">
                                 <div class="relative -mt-16 mb-4 inline-block">
                                     <img src="${avatarUrl}" class="w-32 h-32 rounded-full border-4 border-[#0a0a0a] bg-[#111] object-cover">
-                                    ${risk.rating === 'CRITICAL' ? '<div class="absolute bottom-1 right-1 bg-red-600 text-white text-[10px] font-bold px-2 py-1 rounded shadow border border-black animate-pulse">THREAT</div>' : ''}
+                                    ${risk.rating === 'HIGH RISK' ? '<div class="absolute bottom-1 right-1 bg-red-600 text-white text-[10px] font-bold px-2 py-1 rounded shadow border border-black animate-pulse">THREAT</div>' : ''}
                                 </div>
                                 
                                 <h2 class="text-2xl font-bold text-white leading-tight">${p.global_name || p.username || 'Unknown User'}</h2>
@@ -355,12 +356,12 @@
                         <div class="min-panel p-6 border-l-2 ${risk.rBorder}">
                             <div class="flex justify-between items-start mb-4">
                                 <div>
-                                    <h3 class="text-lg font-bold text-white">Threat Assessment</h3>
-                                    <div class="text-xs font-mono mt-1 text-gray-500 uppercase tracking-widest ${risk.color}">${risk.rating} LEVEL</div>
+                                    <h3 class="text-lg font-bold text-white">Score Analysis</h3>
+                                    <div class="text-xs font-mono mt-1 text-gray-500 uppercase tracking-widest ${risk.color}">${risk.rating}</div>
                                 </div>
                                 <div class="text-right">
                                     <div class="text-4xl font-black ${risk.color}">${t.scoreSum || 0}</div>
-                                    <div class="text-[9px] text-gray-600 uppercase">Reputation Score</div>
+                                    <div class="text-[9px] text-gray-600 uppercase">Risk Score</div>
                                 </div>
                             </div>
                             <div class="w-full bg-[#222] h-2 rounded-full overflow-hidden mb-6">

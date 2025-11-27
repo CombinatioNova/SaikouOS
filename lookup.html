@@ -442,6 +442,8 @@
         const ROTECTOR_API = 'https://roscoe.robalyx.com/v1/lookup/roblox/user';
         const JUSTICE_PROXY = 'https://justice.saikoudevelopment.workers.dev';
         const TASE_WORKER = 'https://tase.saikoudevelopment.workers.dev';
+        // NEW: EASI / ERP Detection Worker
+        const EASI_WORKER = 'https://easi.saikoudevelopment.workers.dev';
         const OOFD_API_URL = 'https://oofd.net/api/ban/status/';
 
         const EXTERNAL_DATABASES = [];
@@ -652,6 +654,8 @@
             federatedBans: [],
             userRings: [],
             discordData: null,
+            // NEW: EASI Data Holder
+            easiData: null,
             friendSafety: new Map(),
             friendStats: { unsafe: 0, flagged: 0, scanned: 0, total: 0, errors: 0 },
             // NEW: History & Cache
@@ -840,6 +844,40 @@
             return hits;
         }
 
+        // --- NEW: EASI / ERP DETECTION CHECK ---
+        async function checkEASI(userId) {
+            if (!app.user || !app.token) return null; // Secure Guard
+
+            try {
+                log(`Querying EASI/ERP Database (Secure Proxy)...`, 'system');
+                const r = await fetch(`${EASI_WORKER}/${userId}`, {
+                    headers: {
+                        'Authorization': `Bearer ${app.token}`
+                    }
+                });
+
+                if (r.status === 404) {
+                    return null; // Clean
+                }
+
+                if (r.ok) {
+                    const data = await r.json();
+                    // <<< FIX: Only return a hit if is_erp is explicitly true >>>
+                    if (data.is_erp === true) {
+                        return {
+                            isHit: true,
+                            data: data,
+                            source: "EASI/ERP Searcher"
+                        };
+                    }
+                }
+            } catch (e) {
+                console.error("EASI Check Failed:", e);
+            }
+            return null;
+        }
+
+
         async function fetchDiscordIntelligence(discordId) {
             log(`Parsing TASE Intelligence for Discord ID: ${discordId}...`, 'system');
             try {
@@ -909,6 +947,7 @@
                 app.rotector = cached.rotector;
                 app.federatedBans = cached.federatedBans;
                 app.discordData = cached.discordData;
+                app.easiData = cached.easiData; // Restore EASI
                 app.friendStats = { ...cached.friendStats };
 
                 // Update History State if not navigating
@@ -939,6 +978,7 @@
             app.rotector = null;
             app.federatedBans = [];
             app.discordData = null;
+            app.easiData = null; // Reset EASI
             app.friendSafety.clear();
             app.friendStats = { unsafe: 0, flagged: 0, scanned: 0, total: 0, errors: 0 };
 
@@ -971,6 +1011,17 @@
                         log(`MATCH FOUND: Subject listed in ${fedBans.length} database(s).`, 'error');
                     } else {
                         log(`Federated lists: Clean.`, 'success');
+                    }
+                }
+
+                // --- EASI / ERP CHECK (Authenticated) ---
+                if (app.profile.id && app.user && app.token) {
+                    const easiResult = await checkEASI(app.profile.id);
+                    if (easiResult) {
+                        app.easiData = easiResult;
+                        log(`EASI DETECTION CONFIRMED: High Risk ERP Markers found.`, 'error');
+                    } else {
+                        log(`EASI Database: Clean.`, 'success');
                     }
                 }
 
@@ -1043,6 +1094,7 @@
                     rotector: app.rotector,
                     federatedBans: app.federatedBans,
                     discordData: app.discordData,
+                    easiData: app.easiData, // Save EASI
                     friendStats: app.friendStats,
                     timestamp: Date.now()
                 };
@@ -1175,7 +1227,8 @@
             container.classList.remove('hidden');
 
             const p = data.profile;
-            const risk = calculateSafetyScore(p, app.friends, app.rings, app.bannedFriends, app.rotector, app.federatedBans);
+            // Pass easiData to calculation
+            const risk = calculateSafetyScore(p, app.friends, app.rings, app.bannedFriends, app.rotector, app.federatedBans, app.easiData);
 
             // Saikou Check
             const saikouData = app.groups.find(g => String(g.id) === SAIKOU_GROUP_ID);
@@ -1450,6 +1503,26 @@
                                     </div>
                                 </div>
                             ` : ''}
+
+                            ${(app.easiData && app.easiData.isHit) ? `
+                                <div class="mt-4 pt-4 border-t border-[#333]">
+                                    <div class="text-xs font-bold text-red-500 uppercase mb-3 flex items-center gap-2">
+                                        <i class="fas fa-biohazard animate-pulse"></i> EASI Database Dossier
+                                    </div>
+                                    <div class="bg-[#1a0505] border border-red-900/30 rounded p-4 relative shadow-[0_0_15px_rgba(220,38,38,0.1)]">
+                                         <div class="absolute left-0 top-0 bottom-0 w-1 bg-red-600"></div>
+                                         
+                                         <!-- <<< FIX: Contain moderation_note in a black styled box >>> -->
+                                         <div class="bg-[#000] border border-[#222] rounded p-3 text-[10px] font-mono text-red-400/90 break-all relative">
+                                            <span class="absolute top-[-8px] left-2 bg-[#1a0505] px-1 text-[8px] uppercase text-red-500 font-bold tracking-wider border border-red-900/50 rounded">Moderation Note</span>
+                                            ${app.easiData.data.moderation_note || 'No specific details provided.'}
+                                         </div>
+                                         <!-- <<< END FIX >>> -->
+
+                                    </div>
+                                </div>
+                            ` : ''}
+
                         </div>
                         
                         ${discordPanel}
@@ -1644,7 +1717,7 @@
         const MORSE_CODE = { '.-': 'A', '-...': 'B', '-.-.': 'C', '-..': 'D', '.': 'E', '..-.': 'F', '--.': 'G', '....': 'H', '..': 'I', '.---': 'J', '-.-': 'K', '.-..': 'L', '--': 'M', '-.': 'N', '---': 'O', '.--.': 'P', '--.-': 'Q', '.-.': 'R', '...': 'S', '-': 'T', '..-': 'U', '...-': 'V', '.--': 'W', '-..-': 'X', '-.--': 'Y', '--..': 'Z', '-----': '0', '.----': '1', '..---': '2', '...--': '3', '....-': '4', '.....': '5', '-....': '6', '--...': '7', '---..': '8', '----.': '9', '/': ' ', '-...-': '=', '.-.-.-': '.', '--..--': ',', '..--..': '?', '.----.': "'", '-.-.--': '!', '-..-.': '/', '-.--.': '(', '-.--.-': ')', '.-...': '&', '---...': ':', '-.-.-.': ';', '-....-': '-', '..--.-': '_', '.-..-.': '"', '...-..-': '$', '.--.-.': '@' };
         function decodeMorse(text) { return text.split('   ').map(word => word.split(' ').map(code => MORSE_CODE[code] || '').join('')).join(' ').trim(); }
 
-        function calculateSafetyScore(profile, friends, rings, bannedFriends, rotector, federatedBans) {
+        function calculateSafetyScore(profile, friends, rings, bannedFriends, rotector, federatedBans, easiData) {
             let score = 50;
             let reasons = { positive: [], negative: [] };
             let decoded = null;
@@ -1747,6 +1820,16 @@
                 if (rotector.flagType === 2) { score -= 60; reasons.negative.push({ text: "Rotector AI: Unsafe", weight: -60, icon: "fa-robot" }); }
                 else if (rotector.flagType === 5 || rotector.flagType === 6) { score -= 20; reasons.negative.push({ text: "Rotector AI: Flagged Pattern", weight: -20, icon: "fa-robot" }); }
                 else if (rotector.flagType === 0) { score += 5; reasons.positive.push({ text: "Rotector AI: Clean Analysis", weight: 5, icon: "fa-shield-virus" }); }
+            }
+
+            // NEW: EASI Detection Check
+            if (easiData && easiData.isHit) {
+                score -= 80;
+                reasons.negative.push({
+                    text: "EASI Database: Confirmed ERP/Predatory Markers",
+                    weight: -80,
+                    icon: "fa-biohazard"
+                });
             }
 
             if (profile.hasVerifiedBadge) { score += 15; reasons.positive.push({ text: "Verified Badge", weight: 15, icon: "fa-check-circle" }); }
