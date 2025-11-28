@@ -278,12 +278,13 @@
         <div class="max-w-6xl mx-auto flex justify-between items-center">
             <a href="/" class="flex items-center gap-3">
                 <!-- LOGO CHANGE: SDIS.svg -->
-                <img src="SDIS.svg" class="h-8 w-auto object-contain" alt="SDIS" onerror="this.style.display='none'; this.nextElementSibling.classList.remove('hidden')">
+                <img src="SDIS.svg" class="h-8 w-auto object-contain" alt="SDIS"
+                    onerror="this.style.display='none'; this.nextElementSibling.classList.remove('hidden')">
                 <!-- Fallback if SVG is missing in preview -->
                 <div class="w-2 h-2 bg-white rounded-full hidden"></div>
-                
-                <div class="font-bold text-lg tracking-tight text-white">SDIS <span
-                        class="text-gray-600 font-normal">/ Lookup</span></div>
+
+                <div class="font-bold text-lg tracking-tight text-white">SDIS <span class="text-gray-600 font-normal">/
+                        Lookup</span></div>
             </a>
 
             <!-- Auth UI -->
@@ -890,22 +891,37 @@
                     fetch(`${TASE_WORKER}/api/v1/check/${discordId}`)
                 ]);
                 const profile = profileReq.ok ? await profileReq.json() : null;
+                // FIX: Updated default to match new 'guilds' key
                 const tase = taseReq.ok ? await taseReq.json() : { scoreSum: 0, guilds: [] };
                 return { profile, tase };
             } catch (e) { return null; }
         }
 
         function calculateDiscordRisk(tase) {
-            let score = tase.scoreSum || 0;
-            let rating = "Safe";
+            // FIX: Updated Logic to use 'guilds' instead of detected_guilds
+            const guilds = tase.guilds || [];
+            const count = guilds.length;
+            const score = tase.scoreSum || 0; // Display purpose only
+
+            let rating = "SAFE";
             let color = "text-green-500";
             let barColor = "bg-green-500";
             let rBorder = "border-green-600";
-            if (score > 100) score = 100;
-            if (score > 50) { rating = "CRITICAL"; color = "text-red-500"; barColor = "bg-red-600"; rBorder = "border-red-600"; }
-            else if (score > 10) { rating = "SUSPICIOUS"; color = "text-yellow-500"; barColor = "bg-yellow-500"; rBorder = "border-yellow-500"; }
-            else if (score > 0) { rating = "LOW RISK"; color = "text-orange-400"; barColor = "bg-orange-400"; rBorder = "border-orange-400"; }
-            return { score, rating, color, barColor, rBorder };
+
+            if (count > 1) {
+                rating = "CRITICAL";
+                color = "text-red-500";
+                barColor = "bg-red-600";
+                rBorder = "border-red-600";
+            } else if (count === 1) {
+                rating = "SUSPICIOUS";
+                color = "text-yellow-500";
+                barColor = "bg-yellow-500";
+                rBorder = "border-yellow-500";
+            }
+            // 0 guilds = Safe (Green)
+
+            return { score, rating, color, barColor, rBorder, count };
         }
 
         async function checkFederatedBans(userId) {
@@ -994,7 +1010,17 @@
             try {
                 const r = await fetch(`${DATA_WORKER}?lookup=${encodeURIComponent(q)}`);
                 const d = await r.json();
-                if (!d.success) throw new Error(d.error);
+
+                // FIX: Graceful error handling for 'User not found'
+                if (!d.success) {
+                    const err = d.error || "Unknown Error";
+                    if (err.includes("User not found")) {
+                        log(`ERROR: User not found. Verify ID/Username.`, 'error');
+                        return; // Stop execution
+                    } else {
+                        throw new Error(err);
+                    }
+                }
 
                 log(`Data stream received.`, 'success');
                 log(`Parsing threat vectors...`);
@@ -1279,6 +1305,7 @@
             let discordPanel = '';
             if (app.discordData && app.discordData.profile) {
                 const dp = app.discordData.profile;
+                // FIX: Updated to fallback to 'guilds'
                 const dt = app.discordData.tase || { scoreSum: 0, guilds: [] };
                 const drisk = calculateDiscordRisk(dt);
                 const avatar = dp.avatar ? `https://cdn.discordapp.com/avatars/${dp.id}/${dp.avatar}.png?size=64` : `https://cdn.discordapp.com/embed/avatars/0.png`;
@@ -1309,23 +1336,55 @@
                              </div>
                              <div class="ml-auto text-right">
                                  <div class="text-xl font-black ${drisk.color}">${dt.scoreSum}</div>
-                                 <div class="text-[9px] text-gray-600 uppercase">Reputation</div>
+                                 <div class="text-[9px] text-gray-600 uppercase">Score</div>
                              </div>
                          </div>
 
+                         <!-- FIX: Updated check to use dt.guilds -->
                          ${dt.guilds && dt.guilds.length > 0 ? `
                              <div class="text-[10px] uppercase text-gray-500 font-bold mb-2">Detected Connections</div>
-                             <div class="space-y-1 max-h-32 overflow-y-auto custom-scroll pr-1">
+                             <div class="space-y-2 max-h-60 overflow-y-auto custom-scroll pr-1">
                                  ${dt.guilds.map(g => `
-                                     <div class="flex justify-between items-center p-2 bg-[#18181b] rounded border border-[#222]">
-                                         <div>
-                                            <div class="truncate text-xs text-gray-300 font-bold pr-2">${g.name}</div>
-                                            <div class="text-[9px] text-gray-500 uppercase tracking-wider">${g.type || 'Unknown Type'}</div>
+                                     <div class="bg-[#050505] rounded border border-[#222] p-2 transition-colors hover:border-[#333]">
+                                         <div class="flex justify-between items-start mb-2">
+                                            <div class="min-w-0 flex-1 mr-2">
+                                                <div class="flex items-center gap-2 mb-0.5">
+                                                    <div class="text-xs font-bold text-gray-200 truncate" title="${g.name}">${g.name}</div>
+                                                    ${g.detectedWith && g.detectedWith.length > 0 ?
+                        `<span class="text-[8px] bg-[#1a1a1a] text-gray-500 px-1 rounded border border-[#333] font-mono tracking-tight">TASE ${g.detectedWith.map(v => `v${v}`).join(',')}</span>`
+                        : ''}
+                                                </div>
+                                                <div class="flex flex-wrap items-center gap-2">
+                                                    <span class="text-[8px] text-gray-600 uppercase font-bold tracking-widest">${g.type || 'UNKNOWN'}</span>
+                                                    ${g.isStaff ? '<span class="text-[8px] bg-red-900/20 text-red-400 px-1 rounded border border-red-900/30 font-bold uppercase tracking-wider">Staff</span>' : ''}
+                                                    ${g.isBooster ? '<span class="text-[8px] bg-pink-900/20 text-pink-400 px-1 rounded border border-pink-900/30 font-bold uppercase tracking-wider"><i class="fas fa-gem mr-0.5"></i>Booster</span>' : ''}
+                                                </div>
+                                            </div>
+                                            <div class="text-right flex-shrink-0">
+                                                <span class="text-xs font-mono font-bold text-red-500">+${g.score}</span>
+                                            </div>
                                          </div>
-                                         <div class="flex items-center gap-1">
-                                             ${g.isStaff ? '<span class="text-[9px] text-red-400 bg-red-900/20 px-1 rounded font-bold">STAFF</span>' : ''}
-                                             <span class="text-[9px] font-mono text-red-500 font-bold">+${g.score}</span>
-                                         </div>
+                                         
+                                         ${g.detail ? `
+                                            <div class="grid grid-cols-4 gap-px bg-[#222] rounded overflow-hidden border border-[#222]">
+                                                <div class="bg-[#0a0a0a] py-1 text-center group hover:bg-[#111] transition-colors">
+                                                    <div class="text-[7px] text-gray-600 uppercase font-bold group-hover:text-gray-500">MSG</div>
+                                                    <div class="text-[10px] font-mono text-gray-300 font-bold">${g.detail.messages || 0}</div>
+                                                </div>
+                                                <div class="bg-[#0a0a0a] py-1 text-center group hover:bg-[#111] transition-colors">
+                                                    <div class="text-[7px] text-gray-600 uppercase font-bold group-hover:text-gray-500">TYPE</div>
+                                                    <div class="text-[10px] font-mono text-gray-300 font-bold">${g.detail.typing || 0}</div>
+                                                </div>
+                                                <div class="bg-[#0a0a0a] py-1 text-center group hover:bg-[#111] transition-colors">
+                                                    <div class="text-[7px] text-gray-600 uppercase font-bold group-hover:text-gray-500">INT</div>
+                                                    <div class="text-[10px] font-mono text-gray-300 font-bold">${g.detail.interaction || 0}</div>
+                                                </div>
+                                                <div class="bg-[#0a0a0a] py-1 text-center group hover:bg-[#111] transition-colors">
+                                                    <div class="text-[7px] text-gray-600 uppercase font-bold group-hover:text-gray-500">IND</div>
+                                                    <div class="text-[10px] font-mono text-gray-300 font-bold">${g.detail.indirect || 0}</div>
+                                                </div>
+                                            </div>
+                                         ` : ''}
                                      </div>
                                  `).join('')}
                              </div>
