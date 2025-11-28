@@ -198,7 +198,9 @@
                 <img src="SDIS.svg" class="h-8 w-auto object-contain transition-transform group-hover:scale-105"
                     alt="SDIS" onerror="this.style.display='none'; this.nextElementSibling.classList.remove('hidden')">
                 <!-- Fallback if SVG is missing in preview -->
-                <div class="w-2 h-2 bg-white rounded-full hidden shadow-[0_0_10px_rgba(255,255,255,0.4)]"></div>
+                <div
+                    class="w-8 h-8 bg-white rounded-full hidden flex items-center justify-center text-black font-bold text-xs shadow-[0_0_10px_rgba(255,255,255,0.4)]">
+                    S</div>
 
                 <div class="font-bold text-lg tracking-tight text-white group-hover:text-gray-200 transition-colors">
                     SDIS <span class="text-gray-600 font-normal group-hover:text-gray-500">/ Discord Search</span></div>
@@ -233,7 +235,7 @@
                 <div class="flex gap-2">
                     <div class="w-3 h-3 rounded-full bg-indigo-900/50 border border-indigo-800"></div>
                 </div>
-                <span class="text-[10px] uppercase tracking-widest text-indigo-500">TASE_LINK_V1</span>
+                <span class="text-[10px] uppercase tracking-widest text-indigo-500">TASE_LINK_V2</span>
                 <span id="status-indicator" class="text-indigo-500 animate-pulse-fast">PROCESSING</span>
             </div>
             <div id="logs" class="p-4 h-64 overflow-y-auto custom-scroll space-y-1 text-gray-400 bg-[#050505]"></div>
@@ -388,7 +390,7 @@
             if (hitCount > 0) {
                 reasons.negative.push({ text: `Detected in ${hitCount} Flagged Server(s)`, weight: -10, icon: "fa-server" });
 
-                const condoCount = tase.guilds.filter(g => g.name.toLowerCase().includes('condo') || g.type.includes('Condo')).length;
+                const condoCount = tase.guilds.filter(g => (g.name || "").toLowerCase().includes('condo') || (g.type || "").includes('Condo')).length;
                 if (condoCount > 0) reasons.negative.push({ text: `${condoCount} Confirmed Condo Connections`, weight: -20, icon: "fa-link" });
 
                 const staffCount = tase.guilds.filter(g => g.isStaff).length;
@@ -398,6 +400,44 @@
             if (score > 100) score = 100; // Cap visual score
 
             return { score, rating, color, barColor, rBorder, reasons };
+        }
+
+        // Helpers for new data visualization
+        function getVersionBadges(detectedArray) {
+            if (!detectedArray || !Array.isArray(detectedArray)) return '';
+
+            return detectedArray.map(ver => {
+                let badgeClass = 'bg-indigo-900/30 text-indigo-400 border-indigo-800';
+                // You can customize colors per version if needed
+                if (ver === 1) badgeClass = 'bg-indigo-900/30 text-indigo-400 border-indigo-800';
+                if (ver === 2) badgeClass = 'bg-purple-900/30 text-purple-400 border-purple-800';
+                if (ver === 3) badgeClass = 'bg-fuchsia-900/30 text-fuchsia-400 border-fuchsia-800';
+
+                return `<span class="text-[10px] font-bold px-1.5 py-0.5 rounded border ${badgeClass} uppercase tracking-wider">Tase V${ver}</span>`;
+            }).join(' ');
+        }
+
+        function renderDetailStats(detail) {
+            if (!detail) return '';
+
+            // Stats grid
+            const items = [
+                { label: 'MSGS', val: detail.messages, icon: 'fa-comment' },
+                { label: 'TYPE', val: detail.typing, icon: 'fa-keyboard' },
+                { label: 'INT', val: detail.interaction, icon: 'fa-fingerprint' },
+                { label: 'IND', val: detail.indirect, icon: 'fa-network-wired' }
+            ];
+
+            return `
+                <div class="grid grid-cols-4 gap-2 mt-3 pt-2 border-t border-[#222]">
+                    ${items.map(i => `
+                        <div class="text-center">
+                            <div class="text-[9px] text-gray-600 uppercase font-bold mb-0.5">${i.label}</div>
+                            <div class="text-[10px] text-gray-300 font-mono">${formatNumber(i.val || 0)}</div>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
         }
 
         function renderDashboard() {
@@ -494,7 +534,7 @@
                         </div>
 
                         <!-- Servers Panel -->
-                        <div class="min-panel p-5 flex flex-col h-[500px]">
+                        <div class="min-panel p-5 flex flex-col h-[600px]">
                             <div class="flex justify-between items-center mb-4 border-b border-[#333] pb-4">
                                 <div>
                                     <h3 class="text-sm font-bold text-white uppercase flex items-center gap-2">
@@ -505,28 +545,40 @@
                                 <span class="text-xs bg-[#222] text-gray-300 px-2 py-1 rounded font-mono border border-[#333]">${t.guilds ? t.guilds.length : 0} Hits</span>
                             </div>
 
-                            <div class="space-y-2 overflow-y-auto custom-scroll flex-1 pr-2">
+                            <div class="space-y-3 overflow-y-auto custom-scroll flex-1 pr-2">
                                 ${t.guilds && t.guilds.length > 0 ? t.guilds.map(g => `
-                                    <div class="flex items-start justify-between p-3 border border-[#222] bg-[#111] hover:border-red-900 hover:bg-red-900/5 rounded transition-colors group">
-                                        <div class="flex items-start gap-3 overflow-hidden">
-                                            <div class="w-10 h-10 bg-[#222] rounded-full flex-shrink-0 flex items-center justify-center text-gray-600 border border-[#333]">
-                                                <i class="fas fa-dungeon text-sm group-hover:text-red-500 transition-colors"></i>
+                                    <div class="p-3 border border-[#222] bg-[#111] hover:border-indigo-900/50 hover:bg-[#151515] rounded transition-all group">
+                                        
+                                        <!-- Header Row -->
+                                        <div class="flex items-start justify-between mb-2">
+                                            <div class="flex items-start gap-3 overflow-hidden">
+                                                <div class="w-10 h-10 bg-[#222] rounded-full flex-shrink-0 flex items-center justify-center text-gray-600 border border-[#333]">
+                                                    <i class="fas fa-dungeon text-sm group-hover:text-indigo-400 transition-colors"></i>
+                                                </div>
+                                                <div class="min-w-0">
+                                                    <div class="flex items-center gap-2">
+                                                        <div class="text-sm text-gray-200 font-bold truncate max-w-[150px] sm:max-w-xs">${g.name}</div>
+                                                        ${getVersionBadges(g.detectedWith)}
+                                                    </div>
+                                                    
+                                                    <div class="flex items-center gap-2 mt-1 flex-wrap">
+                                                        <span class="text-[10px] text-gray-500 uppercase tracking-wider bg-[#000] px-1.5 rounded border border-[#333]">${g.type || 'Unknown'}</span>
+                                                        ${g.isStaff ? '<span class="text-[10px] text-red-400 bg-red-900/20 px-1.5 rounded border border-red-900/30 font-bold"><i class="fas fa-gavel mr-1"></i>STAFF</span>' : ''}
+                                                        ${g.isBooster ? '<span class="text-[10px] text-pink-400 bg-pink-900/20 px-1.5 rounded border border-pink-900/30 font-bold"><i class="fas fa-gem mr-1"></i>BOOST</span>' : ''}
+                                                    </div>
+                                                </div>
                                             </div>
-                                            <div class="min-w-0">
-                                                <div class="text-sm text-gray-200 font-bold truncate pr-4">${g.name}</div>
-                                                <div class="flex items-center gap-2 mt-1">
-                                                    <span class="text-[10px] text-gray-500 uppercase tracking-wider bg-[#000] px-1.5 rounded border border-[#333]">${g.type || 'Unknown'}</span>
-                                                    ${g.isStaff ? '<span class="text-[10px] text-red-400 bg-red-900/20 px-1.5 rounded border border-red-900/30 font-bold">STAFF</span>' : ''}
+                                            <div class="text-right flex-shrink-0">
+                                                <div class="text-xs font-mono text-red-500 font-bold mb-1">+${g.score}</div>
+                                                <div class="flex flex-col gap-0.5">
+                                                     <div class="text-[10px] text-gray-400" title="Last Seen"><i class="fas fa-history text-[9px] mr-1 opacity-50"></i>${g.lastSeen ? new Date(g.lastSeen).toLocaleDateString() : '?'}</div>
                                                 </div>
                                             </div>
                                         </div>
-                                        <div class="text-right flex-shrink-0">
-                                            <div class="text-xs font-mono text-red-500 font-bold mb-1">+${g.score} Risk</div>
-                                            <div class="flex flex-col gap-0.5">
-                                                <div class="text-[10px] text-gray-500" title="First Seen"><i class="fas fa-clock text-[9px] mr-1 opacity-50"></i>First: ${g.firstSeen ? new Date(g.firstSeen).toLocaleDateString() : '?'}</div>
-                                                <div class="text-[10px] text-gray-400" title="Last Seen"><i class="fas fa-history text-[9px] mr-1 opacity-50"></i>Last: ${g.lastSeen ? new Date(g.lastSeen).toLocaleDateString() : '?'}</div>
-                                            </div>
-                                        </div>
+
+                                        <!-- Detail Grid -->
+                                        ${renderDetailStats(g.detail)}
+                                        
                                     </div>
                                 `).join('') : `
                                     <div class="flex flex-col items-center justify-center h-full text-gray-700">
@@ -544,9 +596,6 @@
 
         function getDiscordFlags(p) {
             if (!p || !p.flags) return '<div class="text-gray-600 text-xs italic">No flags returned</div>';
-            // Simple check for flags (this is simplistic as flags are bitfields)
-            // For robust flag checking, we would need bitwise operations against known flags
-            // Displaying raw flags if available, or just badges
 
             const badges = [];
             if (p.public_flags & 1) badges.push({ name: "Staff", icon: "fa-hammer" });
