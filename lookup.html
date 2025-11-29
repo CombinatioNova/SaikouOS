@@ -449,6 +449,9 @@
         const TASE_WORKER = 'https://tase.saikoudevelopment.workers.dev';
         // NEW: EASI / ERP Detection Worker
         const EASI_WORKER = 'https://easi.saikoudevelopment.workers.dev';
+        // NEW: MOCO-CO Worker
+        const MOCOCO_WORKER = 'https://mococo-proxy.saikoudevelopment.workers.dev';
+
         const OOFD_API_URL = 'https://oofd.net/api/ban/status/';
 
         const EXTERNAL_DATABASES = [];
@@ -661,6 +664,8 @@
             discordData: null,
             // NEW: EASI Data Holder
             easiData: null,
+            // NEW: Moco-co Data Holder
+            mococoData: null,
             friendSafety: new Map(),
             friendStats: { unsafe: 0, flagged: 0, scanned: 0, total: 0, errors: 0 },
             // NEW: History & Cache
@@ -867,7 +872,6 @@
 
                 if (r.ok) {
                     const data = await r.json();
-                    // <<< FIX: Only return a hit if is_erp is explicitly true >>>
                     if (data.is_erp === true) {
                         return {
                             isHit: true,
@@ -882,6 +886,33 @@
             return null;
         }
 
+        // --- NEW: MOCO-CO CHECKER ---
+        async function checkMococo(userId) {
+            // UPDATED: No longer strict return null if not logged in.
+            // We proceed, but only attach the token if it exists.
+            
+            const headers = {};
+            if (app.user && app.token) {
+                headers['Authorization'] = `Bearer ${app.token}`;
+            }
+
+            try {
+                log(`Connecting to Moco-co group database...`, 'system');
+                const r = await fetch(`${MOCOCO_WORKER}/${userId}`, {
+                    headers: headers
+                });
+
+                if (r.ok) {
+                    const data = await r.json();
+                    return data;
+                }
+            } catch (e) {
+                console.error("Moco-co Check Failed:", e);
+                log('Moco-co Connection Failed', 'error');
+            }
+            return null;
+        }
+
 
         async function fetchDiscordIntelligence(discordId) {
             log(`Parsing TASE Intelligence for Discord ID: ${discordId}...`, 'system');
@@ -891,14 +922,12 @@
                     fetch(`${TASE_WORKER}/api/v1/check/${discordId}`)
                 ]);
                 const profile = profileReq.ok ? await profileReq.json() : null;
-                // FIX: Updated default to match new 'guilds' key
                 const tase = taseReq.ok ? await taseReq.json() : { scoreSum: 0, guilds: [] };
                 return { profile, tase };
             } catch (e) { return null; }
         }
 
         function calculateDiscordRisk(tase) {
-            // FIX: Updated Logic to use 'guilds' instead of detected_guilds
             const guilds = tase.guilds || [];
             const count = guilds.length;
             const score = tase.scoreSum || 0; // Display purpose only
@@ -919,7 +948,6 @@
                 barColor = "bg-yellow-500";
                 rBorder = "border-yellow-500";
             }
-            // 0 guilds = Safe (Green)
 
             return { score, rating, color, barColor, rBorder, count };
         }
@@ -967,7 +995,8 @@
                 app.rotector = cached.rotector;
                 app.federatedBans = cached.federatedBans;
                 app.discordData = cached.discordData;
-                app.easiData = cached.easiData; // Restore EASI
+                app.easiData = cached.easiData;
+                app.mococoData = cached.mococoData; // Restore Moco-co
                 app.friendStats = { ...cached.friendStats };
 
                 // Update History State if not navigating
@@ -998,7 +1027,8 @@
             app.rotector = null;
             app.federatedBans = [];
             app.discordData = null;
-            app.easiData = null; // Reset EASI
+            app.easiData = null;
+            app.mococoData = null; // Reset Moco-co
             app.friendSafety.clear();
             app.friendStats = { unsafe: 0, flagged: 0, scanned: 0, total: 0, errors: 0 };
 
@@ -1011,7 +1041,6 @@
                 const r = await fetch(`${DATA_WORKER}?lookup=${encodeURIComponent(q)}`);
                 const d = await r.json();
 
-                // FIX: Graceful error handling for 'User not found'
                 if (!d.success) {
                     const err = d.error || "Unknown Error";
                     if (err.includes("User not found")) {
@@ -1052,6 +1081,42 @@
                         log(`EASI DETECTION CONFIRMED: High Risk ERP Markers found.`, 'error');
                     } else {
                         log(`EASI Database: Clean.`, 'success');
+                    }
+                }
+
+                // --- MOCO-CO CHECK (UPDATED) ---
+                // Always check, regardless of auth status
+                if (app.profile.id) {
+                    const mococoResult = await checkMococo(app.profile.id);
+                    if (mococoResult) {
+                        app.mococoData = mococoResult;
+                        
+                        // NEW LOGIC: Integrate Hidden Groups if Authenticated
+                        if (mococoResult.groups && Array.isArray(mococoResult.groups) && mococoResult.groups.length > 0) {
+                            log(`MOCO-CO: ${mococoResult.groups.length} hidden group IDs found. Merging...`, 'warn');
+                            
+                            // Merge into main group list
+                            mococoResult.groups.forEach(hiddenId => {
+                                const existing = app.groups.find(g => String(g.id) === String(hiddenId));
+                                if (existing) {
+                                    existing.isRed = true; // Mark existing group
+                                } else {
+                                    // Add new "Hidden" group entry
+                                    app.groups.unshift({
+                                        id: hiddenId,
+                                        name: `[Flagged Group ${hiddenId}]`,
+                                        role: "Detected",
+                                        isRed: true // Mark new group
+                                    });
+                                }
+                            });
+                        } else if (mococoResult.groupCount > 0) {
+                             log(`Moco-co: User flagged in ${mococoResult.groupCount} group(s).`, 'warn');
+                        } else {
+                            log(`Moco-co: Subject monitored, clean record.`, 'success');
+                        }
+                    } else {
+                        log(`Moco-co: Subject not tracked.`, 'info');
                     }
                 }
 
@@ -1124,7 +1189,8 @@
                     rotector: app.rotector,
                     federatedBans: app.federatedBans,
                     discordData: app.discordData,
-                    easiData: app.easiData, // Save EASI
+                    easiData: app.easiData,
+                    mococoData: app.mococoData,
                     friendStats: app.friendStats,
                     timestamp: Date.now()
                 };
@@ -1132,7 +1198,6 @@
 
                 // History Logic
                 if (!isHistoryNav) {
-                    // If we searched while in the "past", clear future
                     if (app.historyIndex < app.history.length - 1) {
                         app.history = app.history.slice(0, app.historyIndex + 1);
                     }
@@ -1250,6 +1315,79 @@
             } catch (e) { document.getElementById('poi-reason-text').textContent = "Connection failed."; }
         }
 
+        // --- NEW: Client-Side Group Analysis Fetcher ---
+        async function loadGroupAnalysis(groupIds) {
+            const container = document.getElementById('hidden-group-analysis-content');
+            if (!container) return;
+
+            container.innerHTML = '<div class="text-xs text-gray-500 animate-pulse"><i class="fas fa-satellite-dish mr-2"></i>Interrogating Roblox API endpoints...</div>';
+
+            const results = [];
+            
+            // Fetch in parallel
+            await Promise.all(groupIds.map(async (gid) => {
+                try {
+                    // Use CORS proxy to hit Roblox API directly from client (User IP)
+                    const proxyBase = "https://corsproxy.io/?";
+                    const infoUrl = `${proxyBase}${encodeURIComponent(`https://groups.roblox.com/v1/groups/${gid}`)}`;
+                    const thumbUrl = `${proxyBase}${encodeURIComponent(`https://thumbnails.roblox.com/v1/groups/icons?groupIds=${gid}&size=150x150&format=Png&isCircular=false`)}`;
+                    
+                    const [infoReq, thumbReq] = await Promise.all([
+                        fetch(infoUrl),
+                        fetch(thumbUrl)
+                    ]);
+
+                    if (infoReq.ok) {
+                        const infoData = await infoReq.json();
+                        let iconUrl = null;
+                        
+                        if (thumbReq.ok) {
+                            const thumbData = await thumbReq.json();
+                            if (thumbData.data && thumbData.data.length > 0) {
+                                iconUrl = thumbData.data[0].imageUrl;
+                            }
+                        }
+                        
+                        // Attach icon to data object
+                        infoData.iconUrl = iconUrl;
+                        results.push(infoData);
+                    }
+                } catch (e) {
+                    console.error(`Failed to fetch group ${gid}`, e);
+                }
+            }));
+
+            if (results.length === 0) {
+                container.innerHTML = '<div class="text-xs text-red-400">Failed to retrieve group details. Proxies may be busy.</div>';
+                return;
+            }
+
+            container.innerHTML = results.map(g => {
+                const created = new Date(g.created).toLocaleDateString();
+                // Safe description truncation
+                const desc = g.description ? (g.description.length > 100 ? g.description.substring(0, 100) + '...' : g.description) : 'No description.';
+                
+                return `
+                <div class="bg-[#050505] border border-red-900/30 rounded p-3 mb-2 flex gap-3 hover:border-red-500/50 transition-colors">
+                    <div class="flex-shrink-0">
+                        <img src="${g.iconUrl || 'https://placehold.co/150x150/330000/FFF?text=GRP'}" 
+                             class="w-12 h-12 rounded bg-[#111] object-cover border border-[#333]">
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <div class="flex justify-between items-start">
+                            <h4 class="text-sm font-bold text-red-200 truncate"><a href="https://www.roblox.com/groups/${g.id}" target="_blank" class="hover:underline">${g.name}</a></h4>
+                            <span class="text-[9px] bg-[#222] text-gray-400 px-1.5 py-0.5 rounded border border-[#333]">${g.memberCount} Members</span>
+                        </div>
+                        <div class="text-[10px] text-gray-500 font-mono mb-1">
+                            ID: ${g.id} <span class="mx-1">|</span> Owner: <a href="https://www.roblox.com/users/${g.owner?.userId}/profile" target="_blank" class="hover:text-white">${g.owner?.username || 'None'}</a>
+                        </div>
+                        <p class="text-[10px] text-gray-400 italic leading-tight break-words border-l-2 border-[#333] pl-2">${escapeHtml(desc)}</p>
+                    </div>
+                </div>
+                `;
+            }).join('');
+        }
+
         // --- Dashboard Rendering ---
         function renderDashboard(data) {
             document.getElementById('terminal').classList.add('hidden');
@@ -1257,8 +1395,8 @@
             container.classList.remove('hidden');
 
             const p = data.profile;
-            // Pass easiData to calculation
-            const risk = calculateSafetyScore(p, app.friends, app.rings, app.bannedFriends, app.rotector, app.federatedBans, app.easiData);
+            // Pass Moco-co data to calculation
+            const risk = calculateSafetyScore(p, app.friends, app.rings, app.bannedFriends, app.rotector, app.federatedBans, app.easiData, app.mococoData);
 
             // Saikou Check
             const saikouData = app.groups.find(g => String(g.id) === SAIKOU_GROUP_ID);
@@ -1305,7 +1443,6 @@
             let discordPanel = '';
             if (app.discordData && app.discordData.profile) {
                 const dp = app.discordData.profile;
-                // FIX: Updated to fallback to 'guilds'
                 const dt = app.discordData.tase || { scoreSum: 0, guilds: [] };
                 const drisk = calculateDiscordRisk(dt);
                 const avatar = dp.avatar ? `https://cdn.discordapp.com/avatars/${dp.id}/${dp.avatar}.png?size=64` : `https://cdn.discordapp.com/embed/avatars/0.png`;
@@ -1322,7 +1459,7 @@
                          <div class="flex justify-between items-center mb-4 border-b border-[#222] pb-2">
                              <div class="flex items-center gap-2">
                                  <i class="fab fa-discord text-[#5865F2] text-lg"></i>
-                                 <h3 class="text-sm font-bold text-white uppercase">Discord Intelligence</h3>
+                                 <h3 class="text-sm font-bold text-white uppercase">Discord Analysis</h3>
                              </div>
                              <span class="text-xs font-mono px-2 py-0.5 rounded bg-[#111] border border-[#333] ${drisk.color}">${drisk.rating}</span>
                          </div>
@@ -1340,7 +1477,6 @@
                              </div>
                          </div>
 
-                         <!-- FIX: Updated check to use dt.guilds -->
                          ${dt.guilds && dt.guilds.length > 0 ? `
                              <div class="text-[10px] uppercase text-gray-500 font-bold mb-2">Detected Connections</div>
                              <div class="space-y-2 max-h-60 overflow-y-auto custom-scroll pr-1">
@@ -1389,6 +1525,27 @@
                                  `).join('')}
                              </div>
                          ` : '<div class="text-xs text-green-500 italic"><i class="fas fa-check-circle mr-1"></i> No adverse server connections found.</div>'}
+                    </div>
+                `;
+            }
+
+            // --- MOCO-CO PANEL (NEW) ---
+            let mococoPanel = '';
+            // Only show detailed panel if logged in AND hidden groups found
+            if (app.mococoData && app.mococoData.groups && app.mococoData.groups.length > 0) {
+                mococoPanel = `
+                    <div class="min-panel p-5 border-l-2 border-red-500 bg-[#0e0e11] mt-6">
+                        <div class="flex justify-between items-center mb-4 border-b border-[#222] pb-2">
+                             <div class="flex items-center gap-2">
+                                 <img src="https://cdn.simpleicons.org/roblox/ef4444" class="w-5 h-5">
+                                 <h3 class="text-sm font-bold text-white uppercase">Group Analysis</h3>
+                             </div>
+                             <span class="text-xs font-mono px-2 py-0.5 rounded bg-red-900/20 text-red-400 border border-red-900/50">HIGH RISK GROUPS</span>
+                         </div>
+                         
+                         <div id="hidden-group-analysis-content" class="max-h-80 overflow-y-auto custom-scroll pr-1">
+                            <!-- Populated via JS -->
+                         </div>
                     </div>
                 `;
             }
@@ -1532,7 +1689,7 @@
                             </div>
                             ${(app.rotector && app.rotector.reasons && Object.keys(app.rotector.reasons).length > 0) ? `
                                 <div class="mt-4 pt-4 border-t border-[#333]">
-                                    <div class="text-xs font-bold text-gray-500 uppercase mb-3 flex items-center gap-2"><i class="fas fa-brain text-orange-500"></i> AI Intelligence Report</div>
+                                    <div class="text-xs font-bold text-gray-500 uppercase mb-3 flex items-center gap-2"><i class="fas fa-brain text-orange-500"></i> Rotector AI Report</div>
                                     <div class="space-y-3">
                                         ${Object.entries(app.rotector.reasons).map(([name, data]) => {
                     let evidenceHtml = '';
@@ -1590,6 +1747,8 @@
                         
                         ${discordPanel}
 
+                        ${mococoPanel}
+
                         ${app.rings.length > 0 ? `
                             <div class="min-panel p-5 border-l-2 border-red-600 bg-red-900/5">
                                 <h3 class="text-sm font-bold text-white uppercase mb-3 flex items-center gap-2"><i class="fas fa-link text-red-500"></i> Ring Affiliations</h3>
@@ -1632,7 +1791,20 @@
                             <div class="min-panel p-5 flex flex-col h-[400px]">
                                 <div class="flex justify-between items-center mb-4"><h3 class="text-sm font-bold text-white uppercase">Groups</h3><span class="text-xs text-gray-500 font-mono">${app.groups.length} Total</span></div>
                                 <div class="space-y-1 overflow-y-auto custom-scroll flex-1 pr-1">
-                                    ${app.groups.map(g => `<div class="flex items-center justify-between p-2 border border-transparent hover:border-[#333] hover:bg-[#111] rounded transition-colors group"><div class="flex items-center gap-3 overflow-hidden"><div class="w-8 h-8 bg-[#222] rounded flex-shrink-0 flex items-center justify-center text-gray-600"><i class="fas fa-users text-xs"></i></div><div class="min-w-0"><div class="text-xs text-white font-bold truncate">${g.name}</div><div class="text-[10px] text-gray-500 truncate">${g.role || 'Member'}</div></div></div></div>`).join('')}
+                                    <!-- UPDATED: Added logic to highlight Moco-co detected groups -->
+                                    ${app.groups.map(g => `
+                                        <div class="flex items-center justify-between p-2 border ${g.isRed ? 'border-red-500 bg-red-900/20' : 'border-transparent hover:border-[#333] hover:bg-[#111]'} rounded transition-colors group">
+                                            <div class="flex items-center gap-3 overflow-hidden">
+                                                <div class="w-8 h-8 ${g.isRed ? 'bg-red-900/30 text-red-500' : 'bg-[#222] text-gray-600'} rounded flex-shrink-0 flex items-center justify-center">
+                                                    <i class="fas ${g.isRed ? 'fa-exclamation-triangle' : 'fa-users'} text-xs"></i>
+                                                </div>
+                                                <div class="min-w-0">
+                                                    <div class="text-xs ${g.isRed ? 'text-red-300 font-bold' : 'text-white font-bold'} truncate">${g.name}</div>
+                                                    <div class="text-[10px] ${g.isRed ? 'text-red-400/70' : 'text-gray-500'} truncate">${g.role || 'Member'}</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    `).join('')}
                                     ${app.groups.length === 0 ? '<div class="text-gray-600 text-xs text-center mt-10">No public groups found.</div>' : ''}
                                 </div>
                             </div>
@@ -1644,6 +1816,11 @@
             initFriendPager();
             batchCheckFriends();
             if (p.isPOI) fetchPOIDetails(p.id);
+            
+            // Trigger Client-Side Fetch if panel exists
+            if (app.mococoData && app.mococoData.groups && app.mococoData.groups.length > 0) {
+                loadGroupAnalysis(app.mococoData.groups);
+            }
         }
 
         let fPage = 1;
@@ -1780,7 +1957,7 @@
         const MORSE_CODE = { '.-': 'A', '-...': 'B', '-.-.': 'C', '-..': 'D', '.': 'E', '..-.': 'F', '--.': 'G', '....': 'H', '..': 'I', '.---': 'J', '-.-': 'K', '.-..': 'L', '--': 'M', '-.': 'N', '---': 'O', '.--.': 'P', '--.-': 'Q', '.-.': 'R', '...': 'S', '-': 'T', '..-': 'U', '...-': 'V', '.--': 'W', '-..-': 'X', '-.--': 'Y', '--..': 'Z', '-----': '0', '.----': '1', '..---': '2', '...--': '3', '....-': '4', '.....': '5', '-....': '6', '--...': '7', '---..': '8', '----.': '9', '/': ' ', '-...-': '=', '.-.-.-': '.', '--..--': ',', '..--..': '?', '.----.': "'", '-.-.--': '!', '-..-.': '/', '-.--.': '(', '-.--.-': ')', '.-...': '&', '---...': ':', '-.-.-.': ';', '-....-': '-', '..--.-': '_', '.-..-.': '"', '...-..-': '$', '.--.-.': '@' };
         function decodeMorse(text) { return text.split('   ').map(word => word.split(' ').map(code => MORSE_CODE[code] || '').join('')).join(' ').trim(); }
 
-        function calculateSafetyScore(profile, friends, rings, bannedFriends, rotector, federatedBans, easiData) {
+        function calculateSafetyScore(profile, friends, rings, bannedFriends, rotector, federatedBans, easiData, mococoData) {
             let score = 50;
             let reasons = { positive: [], negative: [] };
             let decoded = null;
@@ -1893,6 +2070,27 @@
                     weight: -80,
                     icon: "fa-biohazard"
                 });
+            }
+
+            // NEW: Moco-co Intelligence Logic
+            // FIX: Calculate count regardless of auth status (use array length if groups exist, otherwise use pre-calculated count)
+            if (mococoData) {
+                let mCount = 0;
+                if (mococoData.groups && Array.isArray(mococoData.groups)) {
+                    mCount = mococoData.groups.length;
+                } else if (mococoData.groupCount) {
+                    mCount = mococoData.groupCount;
+                }
+
+                if (mCount > 0) {
+                    const penalty = Math.min(60, mCount * 10);
+                    score -= penalty;
+                    reasons.negative.push({
+                        text: `Moco-co: ${mCount} unsafe group affiliations`,
+                        weight: -penalty,
+                        icon: "fa-layer-group"
+                    });
+                }
             }
 
             if (profile.hasVerifiedBadge) { score += 15; reasons.positive.push({ text: "Verified Badge", weight: 15, icon: "fa-check-circle" }); }
