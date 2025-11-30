@@ -268,6 +268,53 @@
         .poi-border {
             border-color: #dc2626 !important;
         }
+
+        /* Custom Select for Link Modal */
+        select.min-input {
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            appearance: none;
+            background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+            background-repeat: no-repeat;
+            background-position: right 10px center;
+            background-size: 14px;
+            padding-right: 30px;
+        }
+
+        /* Expandable Linked Account Cards */
+        .linked-account-card {
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .linked-account-card:hover {
+            border-color: #555 !important;
+        }
+
+        .linked-account-card.expanded {
+            border-color: #666 !important;
+        }
+
+        .linked-account-details {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease, opacity 0.3s ease, margin-top 0.3s ease;
+            opacity: 0;
+        }
+
+        .linked-account-details.show {
+            max-height: 300px;
+            opacity: 1;
+            margin-top: 0.75rem;
+        }
+
+        .expand-indicator {
+            transition: transform 0.3s ease;
+        }
+
+        .expand-indicator.rotated {
+            transform: rotate(180deg);
+        }
     </style>
 </head>
 
@@ -416,6 +463,160 @@
         </div>
     </div>
 
+    <!-- Add Link / Alt Modal -->
+    <div id="modal-add-link" class="hidden modal-backdrop">
+        <div class="min-panel p-6 w-full max-w-sm bg-black border border-[#333] shadow-2xl relative">
+            <div class="absolute top-0 left-0 w-full h-1 bg-purple-500"></div>
+            <h3 class="text-lg font-bold mb-1 text-white">Link Identity</h3>
+            <p class="text-xs text-gray-500 mb-4">Connect an alternate account or external identity.</p>
+
+            <div class="space-y-3">
+                <div>
+                    <label class="text-[10px] uppercase text-gray-500 font-bold mb-1 block">Platform</label>
+                    <select id="link-platform-select" class="min-input text-xs w-full">
+                        <option value="roblox">Roblox</option>
+                        <option value="discord">Discord</option>
+                        <option value="other">Other</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="text-[10px] uppercase text-gray-500 font-bold mb-1 block">Identifier</label>
+                    <div class="flex gap-2">
+                        <input type="text" id="link-id" class="min-input text-xs flex-1"
+                            placeholder="User ID (e.g. 156322)">
+                        <button id="btn-verify-link"
+                            class="bg-[#111] hover:bg-[#222] border border-[#333] text-white px-3 rounded transition-colors"><i
+                                class="fas fa-search"></i></button>
+                    </div>
+                </div>
+
+                <!-- Preview Area -->
+                <div id="verify-preview"
+                    class="hidden bg-[#050505] border border-[#333] rounded p-2 flex items-center gap-3">
+                    <img id="verify-img" src="" class="w-8 h-8 rounded bg-black border border-[#333]">
+                    <div class="overflow-hidden">
+                        <div id="verify-name" class="text-xs font-bold text-white truncate">User</div>
+                        <div id="verify-id" class="text-[9px] text-gray-500 font-mono truncate">ID: 123</div>
+                    </div>
+                    <div class="ml-auto text-green-500"><i class="fas fa-check-circle"></i></div>
+                </div>
+
+                <div>
+                    <label class="text-[10px] uppercase text-gray-500 font-bold mb-1 block">Confidence</label>
+                    <select id="link-confidence-select" class="min-input text-xs w-full">
+                        <option value="CERTAIN">Certain (Confirmed)</option>
+                        <option value="LIKELY">Likely (Strong Evidence)</option>
+                        <option value="PLAUSIBLE">Plausible (Suspected)</option>
+                    </select>
+                </div>
+
+                <div class="flex gap-2 pt-2">
+                    <button id="btn-submit-link" class="min-btn flex-1 bg-purple-600 hover:bg-purple-500 text-white"
+                        disabled>Add Link</button>
+                    <button onclick="closeModals(); resetVerify();" class="min-btn-outline flex-1">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Merge Confirmation Modal -->
+    <div id="modal-merge-confirm" class="hidden modal-backdrop">
+        <div class="min-panel p-6 w-full max-w-md bg-black border border-[#333] shadow-2xl relative">
+            <div class="absolute top-0 left-0 w-full h-1 bg-yellow-500"></div>
+            <div class="flex items-start gap-3 mb-4">
+                <div class="w-10 h-10 rounded-full bg-yellow-900/20 border border-yellow-600 flex items-center justify-center flex-shrink-0">
+                    <i class="fas fa-code-branch text-yellow-500 text-lg"></i>
+                </div>
+                <div>
+                    <h3 class="text-lg font-bold text-white">Profile Merge Required</h3>
+                    <p class="text-xs text-gray-400 mt-1">Connection detected between profiles</p>
+                </div>
+            </div>
+
+            <div class="bg-[#0a0a0a] border border-[#222] rounded p-3 mb-4">
+                <p class="text-sm text-gray-300 leading-relaxed mb-3">
+                    This <span id="merge-platform" class="text-white font-bold"></span> account is already linked to a different profile. 
+                    This means you've discovered that these accounts belong to the same person!
+                </p>
+                <div class="space-y-2 text-xs">
+                    <div class="flex items-center gap-2">
+                        <i class="fas fa-user text-blue-400 w-4"></i>
+                        <span class="text-gray-500">Current Profile:</span>
+                        <span id="merge-current-profile" class="text-white font-mono"></span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <i class="fas fa-link text-purple-400 w-4"></i>
+                        <span class="text-gray-500">Linking:</span>
+                        <span id="merge-linking-account" class="text-white font-mono"></span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-yellow-900/10 border border-yellow-900/30 rounded p-3 mb-4">
+                <div class="flex items-start gap-2">
+                    <i class="fas fa-info-circle text-yellow-500 text-sm mt-0.5"></i>
+                    <p class="text-xs text-yellow-200/80">
+                        Merging will combine all linked accounts from both profiles into this one. This action cannot be undone.
+                    </p>
+                </div>
+            </div>
+
+            <div class="flex gap-2">
+                <button id="btn-merge-confirm" class="min-btn flex-1 bg-yellow-600 hover:bg-yellow-500 text-white">
+                    <i class="fas fa-code-branch mr-2"></i>Merge Profiles
+                </button>
+                <button onclick="closeModals()" class="min-btn-outline flex-1">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Delete Link Confirmation Modal -->
+    <div id="modal-delete-link" class="hidden modal-backdrop">
+        <div class="min-panel p-6 w-full max-w-md bg-black border border-[#333] shadow-2xl relative">
+            <div class="absolute top-0 left-0 w-full h-1 bg-red-500"></div>
+            <div class="flex items-start gap-3 mb-4">
+                <div class="w-10 h-10 rounded-full bg-red-900/20 border border-red-600 flex items-center justify-center flex-shrink-0">
+                    <i class="fas fa-unlink text-red-500 text-lg"></i>
+                </div>
+                <div>
+                    <h3 class="text-lg font-bold text-white">Remove Linked Account</h3>
+                    <p class="text-xs text-gray-400 mt-1">This will unlink the identity from this profile</p>
+                </div>
+            </div>
+
+            <div class="bg-[#0a0a0a] border border-[#222] rounded p-3 mb-4">
+                <div class="flex items-center gap-3 mb-2">
+                    <img id="delete-link-avatar" src="" class="w-10 h-10 rounded bg-[#111] border border-[#333] object-cover">
+                    <div class="min-w-0 flex-1">
+                        <div id="delete-link-name" class="text-sm font-bold text-white truncate">Account Name</div>
+                        <div class="flex items-center gap-1.5">
+                            <div id="delete-link-platform" class="text-[9px] text-gray-500 uppercase font-bold tracking-wider">Platform</div>
+                            <div class="w-0.5 h-0.5 bg-gray-700 rounded-full"></div>
+                            <div id="delete-link-id" class="text-[9px] text-gray-600 font-mono">ID</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-red-900/10 border border-red-900/30 rounded p-3 mb-4">
+                <div class="flex items-start gap-2">
+                    <i class="fas fa-exclamation-triangle text-red-500 text-sm mt-0.5"></i>
+                    <p class="text-xs text-red-200/80">
+                        This will remove the link between this account and the profile. The account itself will not be deleted.
+                    </p>
+                </div>
+            </div>
+
+            <div class="flex gap-2">
+                <button id="btn-delete-link-confirm" class="min-btn flex-1 bg-red-600 hover:bg-red-500 text-white">
+                    <i class="fas fa-trash mr-2"></i>Remove Link
+                </button>
+                <button onclick="closeModals()" class="min-btn-outline flex-1">Cancel</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         // --- CONFIG ---
         const ENG_FREQ = {
@@ -451,6 +652,8 @@
         const EASI_WORKER = 'https://easi.saikoudevelopment.workers.dev';
         // NEW: MOCO-CO Worker
         const MOCOCO_WORKER = 'https://mococo-proxy.saikoudevelopment.workers.dev';
+        // NEW: Linker Worker
+        const LINKER_WORKER = 'https://sdislinker.saikoudevelopment.workers.dev';
 
         const OOFD_API_URL = 'https://oofd.net/api/ban/status/';
 
@@ -666,12 +869,16 @@
             easiData: null,
             // NEW: Moco-co Data Holder
             mococoData: null,
+            // NEW: Linked Identities (Atlas)
+            identities: [],
             friendSafety: new Map(),
             friendStats: { unsafe: 0, flagged: 0, scanned: 0, total: 0, errors: 0 },
             // NEW: History & Cache
             history: [],
             historyIndex: -1,
-            cache: new Map()
+            cache: new Map(),
+            // NEW: Link Verification Data
+            linkVerifiedData: null
         };
 
         const IMG_CACHE = new Map();
@@ -703,6 +910,208 @@
             return placeholder;
         }
 
+        async function getDiscordAvatar(id) {
+            if(IMG_CACHE.has(`discord:${id}`)) return IMG_CACHE.get(`discord:${id}`);
+            // Default fallback immediately calculated on client side too
+            let fallbackUrl = `https://cdn.discordapp.com/embed/avatars/0.png`;
+            try { fallbackUrl = `https://cdn.discordapp.com/embed/avatars/${(BigInt(id) >> 22n) % 6n}.png`; } catch(e){}
+            try {
+                const res = await fetch(`${LINKER_WORKER}/resolve/discord?id=${id}`, {
+                    headers: { 'Authorization': `Bearer ${app.token}` }
+                });
+                if(res.ok) {
+                    const d = await res.json();
+                    let url = fallbackUrl;
+                    // If we have a real avatar hash
+                    if(d.avatar) {
+                        url = `https://cdn.discordapp.com/avatars/${d.id}/${d.avatar}.png`;
+                    } // If the worker gave us a specific fallback
+                    else if (d.fallback_avatar) {
+                        url = d.fallback_avatar;
+                    }
+                    IMG_CACHE.set(`discord:${id}`, url);
+                    return url;
+                }
+            } catch(e) { console.error(e); }
+            return fallbackUrl;
+        }
+
+        // --- NEW: FETCH DISCORD DATA (Returns Full Object) ---
+        async function resolveDiscordData(id) {
+            // Ensure ID is a string and clean it
+            const cleanId = String(id).trim();
+            
+            // Calculate default avatar index (used as fallback)
+            let defaultAvatarIndex = 0;
+            try {
+                defaultAvatarIndex = Number((BigInt(cleanId) >> 22n) % 6n);
+            } catch(e) {
+                console.warn(`Could not calculate default avatar for ${cleanId}:`, e);
+            }
+            const defaultAvatar = `https://cdn.discordapp.com/embed/avatars/${defaultAvatarIndex}.png`;
+            
+            // Try worker resolution first (requires auth + bot token)
+            if (app.token) {
+                try {
+                    const res = await fetch(`${LINKER_WORKER}/resolve/discord?id=${cleanId}`, { 
+                        headers: { 'Authorization': `Bearer ${app.token}` } 
+                    });
+                    console.log(`Discord resolve for ${cleanId}:`, res.status);
+                    
+                    if (res.ok) {
+                        const d = await res.json();
+                        console.log(`Discord data for ${cleanId}:`, d);
+                        
+                        // Check if we got an error response even with 200 status
+                        if (d.error) {
+                            console.warn(`Discord API error:`, d.error);
+                        } else {
+                            // Worker returns the full Discord user object
+                            let avatarUrl = defaultAvatar;
+                            
+                            // If user has custom avatar, use it
+                            if (d.avatar) {
+                                avatarUrl = `https://cdn.discordapp.com/avatars/${d.id}/${d.avatar}.png?size=128`;
+                            } else if (d.fallback_avatar) {
+                                // Use the fallback avatar provided by the worker
+                                avatarUrl = d.fallback_avatar;
+                            }
+                            
+                            // Determine display name (prefer global_name, fallback to username)
+                            const displayName = d.global_name || d.username || `Discord User ${cleanId}`;
+                            
+                            return { 
+                                id: d.id,
+                                username: d.username || `User ${cleanId}`, 
+                                discriminator: d.discriminator, 
+                                globalName: d.global_name, 
+                                avatarUrl: avatarUrl,
+                                displayName: displayName,
+                                isFallback: d._is_fallback || false
+                            };
+                        }
+                    } else {
+                        const errText = await res.text();
+                        console.warn(`Discord API returned ${res.status}:`, errText);
+                    }
+                } catch (e) { 
+                    console.error(`Discord resolve error for ${cleanId}:`, e);
+                }
+            }
+            
+            // Fallback: Try TASE worker as alternative (it might have cached Discord data)
+            try {
+                const taseRes = await fetch(`${TASE_WORKER}/discord/v10/users/${cleanId}`);
+                if (taseRes.ok) {
+                    const taseData = await taseRes.json();
+                    console.log(`TASE Discord data for ${cleanId}:`, taseData);
+                    
+                    let avatarUrl = defaultAvatar;
+                    if (taseData.avatar) {
+                        avatarUrl = `https://cdn.discordapp.com/avatars/${taseData.id}/${taseData.avatar}.png?size=128`;
+                    }
+                    
+                    const displayName = taseData.global_name || taseData.username || `Discord User`;
+                    
+                    return {
+                        id: taseData.id,
+                        username: taseData.username || `User ${cleanId}`,
+                        discriminator: taseData.discriminator,
+                        globalName: taseData.global_name,
+                        avatarUrl: avatarUrl,
+                        displayName: displayName,
+                        isFallback: false
+                    };
+                }
+            } catch (e) {
+                console.warn(`TASE fallback failed for ${cleanId}:`, e);
+            }
+            
+            // Final fallback: Use default avatar and show ID
+            return { 
+                id: cleanId,
+                username: `Unknown User`, 
+                displayName: `Discord User ${cleanId}`,
+                avatarUrl: defaultAvatar,
+                isFallback: true
+            };
+        }
+
+        // --- NEW: FETCH ROBLOX DATA (Returns Object) ---
+        async function resolveRobloxData(id) {
+            try {
+                const res = await fetch(`https://corsproxy.io/?https://users.roblox.com/v1/users/${id}`);
+                const data = await res.json();
+                const username = data.name || "Unknown Roblox User";
+                const display = data.displayName || "";
+                const avatarUrl = await getAvatar(id, username);
+                return { username, display, avatarUrl };
+            } catch(e) {
+                return { username: "Unknown User", avatarUrl: "https://placehold.co/150x150/333/FFF?text=?" };
+            }
+        }
+
+        // --- NEW: Async Data Hydrator for Linked Accounts ---
+        async function hydrateLinkedAccounts(alts) {
+            console.log(`Hydrating ${alts.length} linked accounts...`);
+            
+            for (const alt of alts) {
+                // Keep ID as string to avoid floating point precision loss with large Discord IDs
+                const cleanId = String(alt.platform_id).trim();
+                const imgId = `linked-img-${alt.platform}-${cleanId}`;
+                const nameId = `linked-name-${alt.platform}-${cleanId}`;
+                const imgEl = document.getElementById(imgId);
+                const nameEl = document.getElementById(nameId);
+                
+                if (!imgEl || !nameEl) {
+                    console.warn(`Could not find elements for ${alt.platform}:${cleanId}`);
+                    continue;
+                }
+
+                console.log(`Hydrating ${alt.platform}:${cleanId}...`);
+
+                try {
+                    if (alt.platform === 'roblox') {
+                        const data = await resolveRobloxData(cleanId);
+                        imgEl.src = data.avatarUrl;
+                        nameEl.textContent = data.username;
+                        if(data.display) nameEl.title = `Display: ${data.display}`;
+                    } 
+                    else if (alt.platform === 'discord') {
+                        const data = await resolveDiscordData(cleanId);
+                        console.log(`Discord hydration result:`, data);
+                        
+                        // Update avatar
+                        imgEl.src = data.avatarUrl;
+                        
+                        // Update username display - show both global name and username
+                        if (data.isFallback || data.username === "Unknown User") {
+                            nameEl.textContent = `User ${cleanId}`;
+                            nameEl.title = `Discord ID: ${cleanId} (Could not fetch username)`;
+                        } else {
+                            // Show both global name and username if they exist and are different
+                            if (data.globalName && data.username && data.globalName !== data.username) {
+                                nameEl.textContent = `${data.globalName} (@${data.username})`;
+                                nameEl.title = `Display Name: ${data.globalName}\nUsername: @${data.username}`;
+                            } else if (data.globalName) {
+                                nameEl.textContent = data.globalName;
+                                nameEl.title = `Display Name: ${data.globalName}`;
+                            } else {
+                                nameEl.textContent = data.username;
+                                nameEl.title = `Username: @${data.username}`;
+                            }
+                        }
+                    }
+                } catch (e) {
+                    console.error(`Failed to hydrate ${alt.platform}:${cleanId}`, e);
+                    nameEl.textContent = `Error loading ${alt.platform}`;
+                    nameEl.classList.add('text-red-400');
+                }
+            }
+            
+            console.log(`Hydration complete.`);
+        }
+
         // --- UI Logic ---
         function log(msg, type = 'info') {
             const d = document.createElement('div');
@@ -714,6 +1123,123 @@
 
         function toggleModal(id) { document.getElementById(id).classList.remove('hidden'); }
         function closeModals() { document.querySelectorAll('.modal-backdrop').forEach(m => m.classList.add('hidden')); }
+
+        // --- Expandable Link Card Logic ---
+        function toggleLinkCard(cardId, event) {
+            // Don't toggle if clicking on a link or button
+            if (event.target.tagName === 'A' || event.target.tagName === 'BUTTON' || event.target.closest('button') || event.target.closest('a')) {
+                return;
+            }
+            
+            const card = document.getElementById(cardId);
+            if (!card) return;
+            
+            const details = card.querySelector('.linked-account-details');
+            const indicator = card.querySelector('.expand-indicator');
+            
+            if (details.classList.contains('show')) {
+                // Collapse
+                details.classList.remove('show');
+                indicator.classList.remove('rotated');
+                card.classList.remove('expanded');
+            } else {
+                // Collapse all other cards first
+                document.querySelectorAll('.linked-account-card').forEach(c => {
+                    if (c.id !== cardId) {
+                        c.querySelector('.linked-account-details')?.classList.remove('show');
+                        c.querySelector('.expand-indicator')?.classList.remove('rotated');
+                        c.classList.remove('expanded');
+                    }
+                });
+                
+                // Expand this card
+                details.classList.add('show');
+                indicator.classList.add('rotated');
+                card.classList.add('expanded');
+            }
+        }
+
+        // --- Delete Link Logic ---
+        let pendingDeleteLink = null;
+
+        async function confirmDeleteLink(platform, platformId) {
+            pendingDeleteLink = { platform, platformId };
+            
+            // Get the current display info for the modal
+            const cleanId = String(platformId).trim();
+            const imgId = `linked-img-${platform}-${cleanId}`;
+            const nameId = `linked-name-${platform}-${cleanId}`;
+            
+            const imgEl = document.getElementById(imgId);
+            const nameEl = document.getElementById(nameId);
+            
+            // Populate modal
+            document.getElementById('delete-link-avatar').src = imgEl?.src || 'https://placehold.co/40x40/111/444?text=?';
+            document.getElementById('delete-link-name').textContent = nameEl?.textContent || 'Unknown';
+            document.getElementById('delete-link-platform').textContent = platform.toUpperCase();
+            document.getElementById('delete-link-id').textContent = cleanId;
+            
+            toggleModal('modal-delete-link');
+        }
+
+        async function deleteLink() {
+            if (!pendingDeleteLink) return;
+            
+            const btn = document.getElementById('btn-delete-link-confirm');
+            const originalText = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Removing...';
+            
+            try {
+                const res = await fetch(`${LINKER_WORKER}/identity`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${app.token}`
+                    },
+                    body: JSON.stringify({
+                        platform: pendingDeleteLink.platform,
+                        platformId: pendingDeleteLink.platformId
+                    })
+                });
+                
+                if (!res.ok) {
+                    const err = await res.json();
+                    throw new Error(err.error || 'Failed to delete link');
+                }
+                
+                const result = await res.json();
+                console.log('Delete result:', result);
+                
+                // Store platform name before clearing
+                const deletedPlatform = pendingDeleteLink.platform;
+                
+                // Remove from local state
+                app.identities = app.identities.filter(i => 
+                    !(i.platform === pendingDeleteLink.platform && 
+                      String(i.platform_id).trim() === String(pendingDeleteLink.platformId).trim())
+                );
+                
+                // Clear cache
+                app.cache.delete(String(app.profile.id));
+                
+                // Close modal
+                closeModals();
+                pendingDeleteLink = null;
+                
+                // Re-render the identity panel - just trigger a full refresh
+                await search(String(app.profile.id));
+                
+                sendNotification('Link Removed', `${deletedPlatform} account unlinked successfully`);
+                
+            } catch (e) {
+                console.error('Delete link error:', e);
+                alert(`Error: ${e.message}`);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            }
+        }
 
         // --- Auth Logic ---
         function initAuth() {
@@ -997,6 +1523,7 @@
                 app.discordData = cached.discordData;
                 app.easiData = cached.easiData;
                 app.mococoData = cached.mococoData; // Restore Moco-co
+                app.identities = cached.identities || []; // Restore Identities
                 app.friendStats = { ...cached.friendStats };
 
                 // Update History State if not navigating
@@ -1029,6 +1556,7 @@
             app.discordData = null;
             app.easiData = null;
             app.mococoData = null; // Reset Moco-co
+            app.identities = []; // Reset Identities
             app.friendSafety.clear();
             app.friendStats = { unsafe: 0, flagged: 0, scanned: 0, total: 0, errors: 0 };
 
@@ -1082,6 +1610,23 @@
                     } else {
                         log(`EASI Database: Clean.`, 'success');
                     }
+
+                    // --- NEW: FETCH LINKED IDENTITIES ---
+                    log(`Querying Identity Atlas (Linker)...`, 'system');
+                    try {
+                        const lRes = await fetch(`${LINKER_WORKER}/lookup?platform=roblox&id=${app.profile.id}`, { headers: { 'Authorization': `Bearer ${app.token}` } });
+                        console.log("Identity lookup response status:", lRes.status);
+                        if (lRes.ok) {
+                            const lData = await lRes.json();
+                            console.log("Identity lookup data:", lData);
+                            app.identities = lData.identities || [];
+                            console.log("Parsed identities:", app.identities);
+                            log(`Atlas: Found ${app.identities.length} linked identities.`, app.identities.length > 0 ? 'warn' : 'success');
+                        } else {
+                            const errText = await lRes.text();
+                            console.error("Identity lookup error:", errText);
+                        }
+                    } catch (e) { console.warn("Linker fetch failed", e); }
                 }
 
                 // --- MOCO-CO CHECK (UPDATED) ---
@@ -1191,6 +1736,7 @@
                     discordData: app.discordData,
                     easiData: app.easiData,
                     mococoData: app.mococoData,
+                    identities: app.identities,
                     friendStats: app.friendStats,
                     timestamp: Date.now()
                 };
@@ -1299,6 +1845,272 @@
             else if (app.friendStats.flagged > 0) el.innerHTML = `<span class="text-yellow-500 font-bold"><i class="fas fa-flag"></i> ${app.friendStats.flagged} Flagged</span>`;
             else if (app.friendStats.scanned >= app.friendStats.total && app.friendStats.total > 0) el.innerHTML = `<span class="text-green-500"><i class="fas fa-check"></i> Clean</span>`;
             else el.innerHTML = `<span class="text-gray-500">${app.friendStats.scanned}/${app.friendStats.total} Scanned</span>`;
+        }
+
+        // --- VERIFY LINK LOGIC (Atlas Integration) ---
+        function resetVerify() {
+            document.getElementById('verify-preview').classList.add('hidden');
+            const btn = document.getElementById('btn-submit-link');
+            btn.textContent = "Add Link"; btn.disabled = true;
+            app.linkVerifiedData = null;
+        }
+
+        async function verifyLinkSubject() {
+            const platform = document.getElementById('link-platform-select').value;
+            const rawId = document.getElementById('link-id').value.trim();
+            if (!rawId) return;
+
+            const vBtn = document.getElementById('btn-verify-link');
+            const origHTML = vBtn.innerHTML;
+            vBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+
+            try {
+                let resolvedId = rawId;
+                let username = "Unknown";
+                let avatarUrl = "";
+
+                if (platform === 'roblox') {
+                    if (isNaN(rawId)) {
+                        const res = await fetch(`https://corsproxy.io/?https://users.roblox.com/v1/usernames/users`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ usernames: [rawId], excludeBannedUsers: false }) });
+                        const data = await res.json();
+                        if (data.data && data.data.length > 0) { resolvedId = data.data[0].id.toString(); username = data.data[0].name; }
+                        else throw new Error("Roblox user not found");
+                    } else {
+                        const res = await fetch(`https://corsproxy.io/?https://users.roblox.com/v1/users/${rawId}`);
+                        const data = await res.json();
+                        if (data.name) { username = data.name; resolvedId = rawId; } else throw new Error("Roblox ID invalid");
+                    }
+                    avatarUrl = await getAvatar(resolvedId, username);
+
+                } else if (platform === 'discord') {
+                    if (isNaN(rawId)) throw new Error("Discord requires Numeric ID");
+                    const dData = await resolveDiscordData(rawId);
+                    if(dData.username === "Unknown Discord User") throw new Error("Discord ID not found");
+                    
+                    username = dData.username;
+                    resolvedId = rawId;
+                    avatarUrl = dData.avatarUrl;
+
+                } else { username = "External User"; }
+
+                document.getElementById('verify-img').src = avatarUrl || 'https://placehold.co/100x100/333/FFF?text=?';
+                document.getElementById('verify-name').textContent = username;
+                document.getElementById('verify-id').textContent = `ID: ${resolvedId}`;
+                document.getElementById('verify-preview').classList.remove('hidden');
+
+                const linkBtn = document.getElementById('btn-submit-link');
+                linkBtn.disabled = false;
+                app.linkVerifiedData = { platform, id: resolvedId, username };
+
+            } catch (e) { alert("Verification Failed: " + e.message); resetVerify(); }
+            vBtn.innerHTML = origHTML;
+        }
+
+        async function submitLink() {
+            if (!app.token || !app.linkVerifiedData) return;
+            const confidence = document.getElementById('link-confidence-select').value;
+            const { platform, id, username } = app.linkVerifiedData;
+            const btn = document.getElementById('btn-submit-link');
+            btn.textContent = "Linking..."; btn.disabled = true;
+
+            try {
+                console.log("Starting link process...");
+                console.log("Current profile ID:", app.profile.id);
+                console.log("Linking:", { platform, id, confidence });
+                
+                // Step 1: Initialize anchor profile for current user
+                const initPayload = {
+                    platform: 'roblox',
+                    platformId: String(app.profile.id),
+                    confidence: 'CERTAIN',
+                    targetProfileId: null
+                };
+                console.log("Init payload:", initPayload);
+                
+                const initRes = await fetch(`${LINKER_WORKER}/link`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${app.token}` },
+                    body: JSON.stringify(initPayload)
+                });
+
+                console.log("Init response status:", initRes.status);
+                if (!initRes.ok) {
+                    const errData = await initRes.text();
+                    console.error("Init error response:", errData);
+                    throw new Error(`Failed to initialize anchor profile: ${errData}`);
+                }
+                const initData = await initRes.json();
+                console.log("Init response data:", initData);
+                const anchorUUID = initData.profile_id;
+                console.log("Anchor UUID:", anchorUUID);
+
+                // Step 2: Link the Alt to the Anchor UUID
+                const linkPayload = {
+                    platform: platform,
+                    platformId: String(id),
+                    confidence: confidence,
+                    targetProfileId: anchorUUID
+                };
+                console.log("Link payload:", linkPayload);
+                
+                const linkRes = await fetch(`${LINKER_WORKER}/link`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${app.token}` },
+                    body: JSON.stringify(linkPayload)
+                });
+
+                console.log("Link response status:", linkRes.status);
+                const linkData = await linkRes.json();
+                console.log("Link response data:", linkData);
+                
+                // Check if response contains an error even with 200 status
+                if (linkData.error) {
+                    // Check if it's a conflict that requires merging
+                    if (linkData.conflict && linkData.existing_profile_id && linkData.target_profile_id) {
+                        console.log("Conflict detected - profiles need to be merged");
+                        
+                        // Store merge data for the modal
+                        app.pendingMerge = {
+                            platform: platform,
+                            platformId: id,
+                            existingProfileId: linkData.existing_profile_id,
+                            targetProfileId: linkData.target_profile_id
+                        };
+                        
+                        // Populate and show custom merge modal
+                        document.getElementById('merge-platform').textContent = platform.charAt(0).toUpperCase() + platform.slice(1);
+                        document.getElementById('merge-current-profile').textContent = `${app.profile.name} (${app.profile.id})`;
+                        document.getElementById('merge-linking-account').textContent = `${platform}: ${id}`;
+                        
+                        closeModals();
+                        toggleModal('modal-merge-confirm');
+                        
+                        btn.textContent = "Add Link";
+                        btn.disabled = false;
+                        return;
+                    }
+                    
+                    // Check if it's already linked to this profile
+                    if (linkData.error.includes("already linked")) {
+                        const alreadyExists = app.identities.some(i => 
+                            i.platform === platform && String(i.platform_id) === String(id)
+                        );
+                        if (alreadyExists) {
+                            throw new Error("This account is already linked to this profile.");
+                        }
+                    }
+                    
+                    throw new Error(linkData.error);
+                }
+                
+                if (!linkRes.ok) {
+                    throw new Error(`Failed to link alt identity: ${linkData.message || 'Unknown error'}`);
+                }
+
+                // Add the new identity to the app state
+                const newIdentity = {
+                    platform: platform,
+                    platform_id: String(id),
+                    confidence: confidence
+                };
+                app.identities.push(newIdentity);
+
+                // Clear cache so next search gets fresh data
+                app.cache.delete(String(app.profile.id));
+
+                closeModals();
+                resetVerify();
+                document.getElementById('link-id').value = '';
+                
+                // Just re-render the identity panel without full refresh
+                const identityContainer = document.querySelector('.min-panel.border-l-2.border-gray-600');
+                if (identityContainer) {
+                    const alts = app.identities.filter(i => !(i.platform === 'roblox' && String(i.platform_id) === String(app.profile.id)));
+                    
+                    identityContainer.innerHTML = `
+                        <div class="flex justify-between items-center mb-3">
+                             <h3 class="text-sm font-bold text-white uppercase flex items-center gap-2">
+                                 <i class="fas fa-link text-gray-500"></i> Linked Accounts
+                             </h3>
+                             <button onclick="toggleModal('modal-add-link')" class="text-xs text-gray-400 hover:text-white transition-colors border border-gray-700 px-2 py-0.5 rounded hover:bg-gray-800"><i class="fas fa-plus mr-1"></i>Add</button>
+                        </div>
+                        
+                        ${alts.length > 0 ? `
+                            <div class="space-y-2 max-h-60 overflow-y-auto custom-scroll pr-1">
+                                ${alts.map(alt => {
+                                    const confColor = alt.confidence === 'CERTAIN' ? 'text-green-400 border-green-900 bg-green-900/10' : alt.confidence === 'LIKELY' ? 'text-yellow-400 border-yellow-900 bg-yellow-900/10' : 'text-gray-400 border-gray-800';
+                                    // Keep ID as string to avoid floating point precision loss with large Discord IDs
+                                    const cleanId = String(alt.platform_id).trim();
+                                    const imgId = `linked-img-${alt.platform}-${cleanId}`;
+                                    const nameId = `linked-name-${alt.platform}-${cleanId}`;
+                                    const profileLink = alt.platform === 'roblox' ? `https://www.roblox.com/users/${cleanId}/profile` : '#';
+                                    const copyAction = alt.platform === 'discord' ? `onclick="navigator.clipboard.writeText('${cleanId}')"` : '';
+                                    const platformIcon = alt.platform === 'discord' ? 'fab fa-discord' : alt.platform === 'roblox' ? 'fas fa-user' : 'fas fa-link';
+                                    const platformColor = alt.platform === 'discord' ? 'text-[#5865F2]' : 'text-gray-500';
+                                    
+                                    const cardId = `link-card-${alt.platform}-${cleanId}`;
+                                    return `
+                                    <div id="${cardId}" class="linked-account-card border border-[#333] bg-[#050505] rounded transition-colors" onclick="toggleLinkCard('${cardId}', event)">
+                                        <div class="flex items-center justify-between p-2">
+                                            <div class="flex items-center gap-3 min-w-0 flex-1">
+                                                <div class="relative">
+                                                    <img id="${imgId}" src="https://placehold.co/40x40/111/444?text=..." class="w-8 h-8 rounded bg-[#111] border border-[#333] object-cover flex-shrink-0">
+                                                    <i class="${platformIcon} ${platformColor} absolute -bottom-0.5 -right-0.5 text-[10px] bg-black rounded-full p-0.5 border border-[#333]"></i>
+                                                </div>
+                                                <div class="min-w-0 flex-1">
+                                                    <div id="${nameId}" class="text-xs font-bold text-gray-200 truncate">Loading...</div>
+                                                    <div class="flex items-center gap-1.5">
+                                                        <div class="text-[9px] text-gray-500 uppercase font-bold tracking-wider">${alt.platform}</div>
+                                                        <div class="w-0.5 h-0.5 bg-gray-700 rounded-full"></div>
+                                                        <a href="${profileLink}" target="_blank" ${copyAction} class="text-[9px] text-gray-600 font-mono hover:text-gray-400 transition-colors" title="${cleanId}" onclick="event.stopPropagation()">${cleanId}</a>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="flex items-center gap-2">
+                                                <div class="text-[9px] font-bold px-1.5 py-0.5 rounded border ${confColor}">${alt.confidence}</div>
+                                                <i class="fas fa-chevron-down text-gray-500 text-xs expand-indicator"></i>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="linked-account-details px-2 pb-2">
+                                            <div class="border-t border-[#222] pt-3 space-y-2">
+                                                <div class="grid grid-cols-2 gap-2 text-xs">
+                                                    <div class="flex justify-between">
+                                                        <span class="text-gray-500">Confidence:</span>
+                                                        <span class="font-bold ${confColor.split(' ')[0]}">${alt.confidence}</span>
+                                                    </div>
+                                                    <div class="flex justify-between">
+                                                        <span class="text-gray-500">Platform:</span>
+                                                        <span class="text-white uppercase">${alt.platform}</span>
+                                                    </div>
+                                                </div>
+                                                <div class="flex items-center justify-between pt-2">
+                                                    <a href="${profileLink}" target="_blank" class="text-xs text-blue-400 hover:text-blue-300 transition-colors" onclick="event.stopPropagation()">
+                                                        <i class="fas fa-external-link-alt mr-1"></i>View Profile
+                                                    </a>
+                                                    <button onclick="confirmDeleteLink('${alt.platform}', '${cleanId}'); event.stopPropagation();" class="text-xs text-red-500 hover:text-red-400 transition-colors px-2 py-1 border border-red-900/30 rounded hover:bg-red-900/10">
+                                                        <i class="fas fa-unlink mr-1"></i>Remove Link
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    `;
+                                }).join('')}
+                            </div>
+                        ` : `<div class="text-xs text-gray-500 italic p-2 text-center">No linked identities found.</div>`}
+                    `;
+                    
+                    // Hydrate the new cards
+                    hydrateLinkedAccounts(alts);
+                }
+
+            } catch (e) { 
+                console.error("Submit link error:", e);
+                alert(`Error: ${e.message}`); 
+                btn.textContent = "Add Link"; 
+                btn.disabled = false; 
+            }
         }
 
         async function fetchPOIDetails(userId) {
@@ -1421,7 +2233,7 @@
             }
 
             const sdisData = app.groups.find(g => String(g.id) === SDIS_GROUP_ID);
-            const sdisNameBadge = sdisData ? `<span class="ml-2 inline-flex items-center justify-center px-2 py-[1px] rounded-md bg-slate-900 border border-slate-600 text-slate-300 text-[10px] font-['Montserrat'] font-bold tracking-wider shadow-[0_0_10px_rgba(71,85,105,0.3)] align-middle" title="SDIS Agent // Verified">SDIS</span>` : '';
+            const sdisNameBadge = sdisData ? `<span class="ml-2 inline-flex items-center justify-center px-2 py-0 rounded-md bg-slate-900 border border-slate-600 text-slate-300 text-[10px] font-['Montserrat'] font-bold tracking-wider shadow-[0_0_10px_rgba(71,85,105,0.3)] align-middle" title="SDIS Agent // Verified">SDIS</span>` : '';
 
             let banHistory = data.banHistory || [];
             if (app.federatedBans.length > 0) {
@@ -1609,6 +2421,102 @@
                                 <div><div class="font-bold text-white text-lg">${formatNumber(p.badgeCount)}</div><div class="text-[10px] text-gray-600 uppercase">Badges</div></div>
                             </div>
                         </div>
+
+                        ${(() => {
+                            // --- IDENTITY / ALT PANEL ---
+                            if (!app.user || !app.profile.id) return '';
+                            
+                            console.log("Rendering identity panel...");
+                            console.log("app.identities:", app.identities);
+                            console.log("Current profile ID:", app.profile.id);
+                            const alts = app.identities.filter(i => !(i.platform === 'roblox' && String(i.platform_id) === String(app.profile.id)));
+                            console.log("Filtered alts:", alts);
+                            const altsToLoad = alts;
+                            
+                            let identityPanel = `
+                                <div class="min-panel p-5 mt-6 border-l-2 border-gray-600 bg-[#0e0e11]">
+                                    <div class="flex justify-between items-center mb-3">
+                                         <h3 class="text-sm font-bold text-white uppercase flex items-center gap-2">
+                                             <i class="fas fa-link text-gray-500"></i> Linked Accounts
+                                         </h3>
+                                         <button onclick="toggleModal('modal-add-link')" class="text-xs text-gray-400 hover:text-white transition-colors border border-gray-700 px-2 py-0.5 rounded hover:bg-gray-800"><i class="fas fa-plus mr-1"></i>Add</button>
+                                    </div>
+                                    
+                                    ${alts.length > 0 ? `
+                                        <div class="space-y-2 max-h-60 overflow-y-auto custom-scroll pr-1">
+                                            ${alts.map(alt => {
+                                                const confColor = alt.confidence === 'CERTAIN' ? 'text-green-400 border-green-900 bg-green-900/10' : alt.confidence === 'LIKELY' ? 'text-yellow-400 border-yellow-900 bg-yellow-900/10' : 'text-gray-400 border-gray-800';
+                                                // Keep ID as string to avoid floating point precision loss with large Discord IDs
+                                                const cleanId = String(alt.platform_id).trim();
+                                                const imgId = `linked-img-${alt.platform}-${cleanId}`;
+                                                const nameId = `linked-name-${alt.platform}-${cleanId}`;
+                                                const profileLink = alt.platform === 'roblox' ? `https://www.roblox.com/users/${cleanId}/profile` : '#';
+                                                const copyAction = alt.platform === 'discord' ? `onclick="navigator.clipboard.writeText('${cleanId}')"` : '';
+                                                
+                                                const platformIcon = alt.platform === 'discord' ? 'fab fa-discord' : alt.platform === 'roblox' ? 'fas fa-user' : 'fas fa-link';
+                                                const platformColor = alt.platform === 'discord' ? 'text-[#5865F2]' : 'text-gray-500';
+                                                
+                                                const cardId = `link-card-${alt.platform}-${cleanId}`;
+                                                return `
+                                                <div id="${cardId}" class="linked-account-card border border-[#333] bg-[#050505] rounded transition-colors" onclick="toggleLinkCard('${cardId}', event)">
+                                                    <div class="flex items-center justify-between p-2">
+                                                        <div class="flex items-center gap-3 min-w-0 flex-1">
+                                                            <div class="relative">
+                                                                <img id="${imgId}" src="https://placehold.co/40x40/111/444?text=..." class="w-8 h-8 rounded bg-[#111] border border-[#333] object-cover flex-shrink-0">
+                                                                <i class="${platformIcon} ${platformColor} absolute -bottom-0.5 -right-0.5 text-[10px] bg-black rounded-full p-0.5 border border-[#333]"></i>
+                                                            </div>
+                                                            <div class="min-w-0 flex-1">
+                                                                <div id="${nameId}" class="text-xs font-bold text-gray-200 truncate">Loading...</div>
+                                                                <div class="flex items-center gap-1.5">
+                                                                    <div class="text-[9px] text-gray-500 uppercase font-bold tracking-wider">${alt.platform}</div>
+                                                                    <div class="w-0.5 h-0.5 bg-gray-700 rounded-full"></div>
+                                                                    <a href="${profileLink}" target="_blank" ${copyAction} class="text-[9px] text-gray-600 font-mono hover:text-gray-400 transition-colors" title="${cleanId}" onclick="event.stopPropagation()">${cleanId}</a>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        <div class="flex items-center gap-2">
+                                                            <div class="text-[9px] font-bold px-1.5 py-0.5 rounded border ${confColor}">${alt.confidence}</div>
+                                                            <i class="fas fa-chevron-down text-gray-500 text-xs expand-indicator"></i>
+                                                        </div>
+                                                    </div>
+                                                    
+                                                    <div class="linked-account-details px-2 pb-2">
+                                                        <div class="border-t border-[#222] pt-3 space-y-2">
+                                                            <div class="grid grid-cols-2 gap-2 text-xs">
+                                                                <div class="flex justify-between">
+                                                                    <span class="text-gray-500">Confidence:</span>
+                                                                    <span class="font-bold ${confColor.split(' ')[0]}">${alt.confidence}</span>
+                                                                </div>
+                                                                <div class="flex justify-between">
+                                                                    <span class="text-gray-500">Platform:</span>
+                                                                    <span class="text-white uppercase">${alt.platform}</span>
+                                                                </div>
+                                                            </div>
+                                                            <div class="flex items-center justify-between pt-2">
+                                                                <a href="${profileLink}" target="_blank" class="text-xs text-blue-400 hover:text-blue-300 transition-colors" onclick="event.stopPropagation()">
+                                                                    <i class="fas fa-external-link-alt mr-1"></i>View Profile
+                                                                </a>
+                                                                <button onclick="confirmDeleteLink('${alt.platform}', '${cleanId}'); event.stopPropagation();" class="text-xs text-red-500 hover:text-red-400 transition-colors px-2 py-1 border border-red-900/30 rounded hover:bg-red-900/10">
+                                                                    <i class="fas fa-unlink mr-1"></i>Remove Link
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                `;
+                                            }).join('')}
+                                        </div>
+                                    ` : `<div class="text-xs text-gray-500 italic p-2 text-center">No linked identities found.</div>`}
+                                </div>
+                            `;
+                            
+                            // Trigger async avatar loading
+                            if (altsToLoad.length > 0) {
+                                setTimeout(() => hydrateLinkedAccounts(altsToLoad), 100);
+                            }
+                            
+                            return identityPanel;
+                        })()}
 
                         <div class="min-panel p-5 space-y-3 text-sm">
                             <h3 class="text-xs font-bold text-gray-500 uppercase mb-3">Metadata</h3>
@@ -2105,10 +3013,65 @@
         initAuth();
         document.getElementById('search-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') search(); });
         document.getElementById('search-btn').onclick = () => search();
+        document.getElementById('btn-verify-link').onclick = verifyLinkSubject;
+        document.getElementById('link-id').addEventListener('keydown', (e) => { if (e.key === 'Enter') verifyLinkSubject(); });
+        document.getElementById('btn-submit-link').onclick = submitLink;
+        document.getElementById('btn-delete-link-confirm').onclick = deleteLink;
+        document.getElementById('btn-merge-confirm').onclick = async () => {
+            if (!app.pendingMerge) return;
+            
+            const btn = document.getElementById('btn-merge-confirm');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Merging...';
+            btn.disabled = true;
+            
+            try {
+                const mergeRes = await fetch(`${LINKER_WORKER}/merge`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${app.token}` },
+                    body: JSON.stringify({
+                        sourceProfileId: app.pendingMerge.existingProfileId,
+                        targetProfileId: app.pendingMerge.targetProfileId,
+                        keepTarget: true
+                    })
+                });
+                
+                if (!mergeRes.ok) {
+                    const mergeErr = await mergeRes.json();
+                    throw new Error(`Merge failed: ${mergeErr.error || 'Unknown error'}`);
+                }
+                
+                const mergeData = await mergeRes.json();
+                console.log("Merge successful:", mergeData);
+                
+                // Update local state with merged identities
+                app.identities = mergeData.identities || [];
+                
+                // Clear cache and refresh
+                app.cache.delete(String(app.profile.id));
+                
+                closeModals();
+                resetVerify();
+                document.getElementById('link-id').value = '';
+                app.pendingMerge = null;
+                
+                sendNotification('Profiles Merged', `Successfully merged ${mergeData.total_identities} identities into this profile.`);
+                
+                // Refresh to show all merged identities
+                search(app.profile.id);
+                
+            } catch (e) {
+                alert(`Error: ${e.message}`);
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }
+        };
 
         window.openRingModal = openRingModal;
         window.unmarkPoi = unmarkPoi;
         window.search = search;
+        window.toggleModal = toggleModal;
+        window.resetVerify = resetVerify;
 
         const urlParams = new URLSearchParams(window.location.search);
         if (urlParams.has('lookup')) search(urlParams.get('lookup'));
